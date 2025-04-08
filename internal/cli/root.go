@@ -48,6 +48,7 @@ func init() {
 		setupCmd(),
 		bootstrapCmd(),
 		configCmd(),
+		chatCmd(),
 	)
 
 	// Disable the completion command for now since we haven't implemented it
