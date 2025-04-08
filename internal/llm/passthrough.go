@@ -2,18 +2,28 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"gofast/internal/config"
+)
+
+const (
+	// CALL_TOOL_INDICATOR prefixes a message that should trigger a tool call
+	CALL_TOOL_INDICATOR = "***CALL_TOOL"
+	// FIXED_RESPONSE_INDICATOR sets a fixed response for all subsequent calls
+	FIXED_RESPONSE_INDICATOR = "***FIXED_RESPONSE"
 )
 
 // PassthroughLLM is a simple implementation that just echoes messages back
 // Useful for testing and development without making actual API calls
 type PassthroughLLM struct {
-	name     string
-	memory   Memory
-	cfg      *config.Settings
-	defaults *RequestParams
+	name          string
+	memory        Memory
+	cfg           *config.Settings
+	defaults      *RequestParams
+	fixedResponse string // if set, always return this response
 }
 
 // NewPassthroughLLM creates a new PassthroughLLM instance
@@ -45,10 +55,44 @@ func (l *PassthroughLLM) Generate(ctx context.Context, msg Message, params *Requ
 		}
 	}
 
+	// Check for special commands
+	if strings.HasPrefix(msg.Content, FIXED_RESPONSE_INDICATOR) {
+		parts := strings.SplitN(msg.Content, FIXED_RESPONSE_INDICATOR, 2)
+		if len(parts) > 1 {
+			l.fixedResponse = strings.TrimSpace(parts[1])
+		}
+	}
+
+	if strings.HasPrefix(msg.Content, CALL_TOOL_INDICATOR) {
+		toolName, args, err := l.parseToolCall(msg.Content)
+		if err != nil {
+			return Message{}, fmt.Errorf("failed to parse tool call: %w", err)
+		}
+		result, err := l.CallTool(ctx, ToolCall{
+			Name: toolName,
+			Args: args,
+		})
+		if err != nil {
+			return Message{}, fmt.Errorf("failed to call tool: %w", err)
+		}
+		return Message{
+			Type:    MessageTypeAssistant,
+			Content: result,
+			Name:    l.name,
+		}, nil
+	}
+
 	// Create response message
+	var content string
+	if l.fixedResponse != "" {
+		content = l.fixedResponse
+	} else {
+		content = msg.Content
+	}
+
 	response := Message{
 		Type:    MessageTypeAssistant,
-		Content: msg.Content, // Simply echo back the content
+		Content: content,
 		Name:    l.name,
 	}
 
@@ -73,6 +117,26 @@ func (l *PassthroughLLM) GenerateString(ctx context.Context, content string, par
 		return "", err
 	}
 	return response.Content, nil
+}
+
+// parseToolCall parses a tool call message into name and arguments
+func (l *PassthroughLLM) parseToolCall(content string) (name string, args map[string]any, err error) {
+	// Remove the indicator
+	content = strings.TrimPrefix(content, CALL_TOOL_INDICATOR)
+	content = strings.TrimSpace(content)
+
+	// Split into name and args
+	parts := strings.SplitN(content, " ", 2)
+	name = parts[0]
+
+	// Parse args if present
+	if len(parts) > 1 {
+		if err := json.Unmarshal([]byte(parts[1]), &args); err != nil {
+			return "", nil, fmt.Errorf("invalid JSON arguments: %w", err)
+		}
+	}
+
+	return name, args, nil
 }
 
 // CallTool executes a tool call and returns the result

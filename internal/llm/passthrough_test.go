@@ -36,6 +36,90 @@ func TestPassthroughLLM(t *testing.T) {
 		assert.Equal(t, content, str)
 	})
 
+	t.Run("fixed response", func(t *testing.T) {
+		llm := NewPassthroughLLM("test")
+		ctx := context.Background()
+
+		// Set fixed response
+		msg := Message{
+			Type:    MessageTypeUser,
+			Content: FIXED_RESPONSE_INDICATOR + " fixed output",
+		}
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "fixed output", response.Content)
+
+		// Subsequent messages should return fixed response
+		msg = Message{
+			Type:    MessageTypeUser,
+			Content: "other message",
+		}
+		response, err = llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "fixed output", response.Content)
+	})
+
+	t.Run("fixed response empty", func(t *testing.T) {
+		llm := NewPassthroughLLM("test")
+		ctx := context.Background()
+
+		// Empty fixed response should be ignored
+		msg := Message{
+			Type:    MessageTypeUser,
+			Content: FIXED_RESPONSE_INDICATOR,
+		}
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Equal(t, FIXED_RESPONSE_INDICATOR, response.Content)
+
+		// Next message should echo as normal
+		msg = Message{
+			Type:    MessageTypeUser,
+			Content: "normal message",
+		}
+		response, err = llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "normal message", response.Content)
+	})
+
+	t.Run("tool calls", func(t *testing.T) {
+		llm := NewPassthroughLLM("test")
+		ctx := context.Background()
+
+		t.Run("no args", func(t *testing.T) {
+			name, args, err := llm.parseToolCall(CALL_TOOL_INDICATOR + " test_tool")
+			require.NoError(t, err)
+			assert.Equal(t, "test_tool", name)
+			assert.Nil(t, args)
+		})
+
+		t.Run("with args", func(t *testing.T) {
+			name, args, err := llm.parseToolCall(CALL_TOOL_INDICATOR + ` test_tool {"arg": "value", "num": 42}`)
+			require.NoError(t, err)
+			assert.Equal(t, "test_tool", name)
+			require.NotNil(t, args)
+			assert.Equal(t, "value", args["arg"])
+			assert.Equal(t, float64(42), args["num"]) // JSON numbers are float64
+		})
+
+		t.Run("invalid json", func(t *testing.T) {
+			_, _, err := llm.parseToolCall(CALL_TOOL_INDICATOR + ` test_tool {bad json}`)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid JSON")
+		})
+
+		t.Run("tool execution", func(t *testing.T) {
+			msg := Message{
+				Type:    MessageTypeUser,
+				Content: CALL_TOOL_INDICATOR + ` test_tool {"arg": "value"}`,
+			}
+			response, err := llm.Generate(ctx, msg, nil)
+			require.NoError(t, err)
+			assert.Contains(t, response.Content, "Tool call: test_tool")
+			assert.Contains(t, response.Content, "value")
+		})
+	})
+
 	t.Run("history management", func(t *testing.T) {
 		llm := NewPassthroughLLM("test")
 		ctx := context.Background()
@@ -59,28 +143,6 @@ func TestPassthroughLLM(t *testing.T) {
 		assert.Equal(t, msg1.Content, history[1].Content)
 		assert.Equal(t, msg2.Content, history[2].Content)
 		assert.Equal(t, msg2.Content, history[3].Content)
-	})
-
-	t.Run("tool calls", func(t *testing.T) {
-		llm := NewPassthroughLLM("test")
-		ctx := context.Background()
-		require.NoError(t, llm.Initialize(ctx, nil))
-
-		// Test tool call
-		call := ToolCall{
-			ID:   "test-call",
-			Name: "test-tool",
-			Args: map[string]any{
-				"arg1": "value1",
-				"arg2": 42,
-			},
-		}
-
-		result, err := llm.CallTool(ctx, call)
-		require.NoError(t, err)
-		assert.Contains(t, result, "Tool call: test-tool")
-		assert.Contains(t, result, "value1")
-		assert.Contains(t, result, "42")
 	})
 
 	t.Run("cleanup", func(t *testing.T) {
