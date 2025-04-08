@@ -1,24 +1,50 @@
 # FastAgent (Go Implementation)
 
-FastAgent is a Go-based framework for building effective agents using the Model Context Protocol (MCP). This project is currently in early development, implementing a Go version of the FastAgent framework.
+FastAgent is a Go-based framework for building effective agents using the Model Context Protocol (MCP). It provides a robust foundation for creating AI agents that can use tools, manage context, and execute complex workflows.
+
+## Core Features
+
+- **Provider-Agnostic LLM Interface**
+  - Support for multiple LLM providers (Anthropic, OpenAI)
+  - Clean abstraction for message handling
+  - Unified tool calling interface
+  - Structured output support
+
+- **Memory & Context Management**
+  - Thread-safe context handling
+  - Flexible memory management
+  - Separate prompt/conversation storage
+  - History serialization
+
+- **Development Tools**
+  - Passthrough LLM for testing
+  - Playback LLM for simulations
+  - Comprehensive testing utilities
+  - Debug-friendly logging
+
+- **CLI Framework**
+  - Project setup and bootstrapping
+  - Configuration management
+  - Example application generation
+  - Development utilities
 
 ## Current Status
 
-This is an early implementation with basic configuration and CLI functionality. More features are actively being developed.
+This is an active implementation with the following components:
 
 ### Implemented Features
+- **Core Framework**
+  - CLI structure using Cobra
+  - YAML configuration with validation
+  - Environment variable support
+  - Thread-safe context management
+  - Structured logging with Zap
 
-- **CLI Framework**
-  - Basic command structure using Cobra
-  - `setup` command for new project initialization
-  - `bootstrap` command for creating example applications
-  - `config` command for managing configuration
-
-- **Configuration System**
-  - YAML-based configuration with environment variable overrides
-  - Validation for settings and server configurations
-  - Support for logging and MCP server settings
-  - Comprehensive test coverage
+### In Development
+- Message handling system
+- Memory management
+- Provider integration
+- Agent runtime
 
 ## Getting Started
 
@@ -80,20 +106,43 @@ mcp:
       args: ["mcp-server-fetch"]
 ```
 
-## Development Status
+## Development Roadmap
 
-This project is under active development. See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the detailed development roadmap.
+See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the detailed development roadmap.
 
-### Next Steps
+Current focus:
+1. Message handling system
+2. Memory management
+3. Provider integration
+4. Agent runtime
 
-- Context management implementation
-- Logging system
-- MCP server support
-- Workflow execution
+## Architecture
+
+FastAgent follows these key principles:
+
+1. **Type Safety**
+   - Provider-specific type handling
+   - Interface-based abstractions
+   - Generic message types
+
+2. **Clean Abstractions**
+   - Provider-agnostic core
+   - Pluggable components
+   - Clear boundaries
+
+3. **Testing First**
+   - Comprehensive test coverage
+   - Mock providers
+   - Development tools
+
+4. **Production Ready**
+   - Thread safety
+   - Error handling
+   - Resource management
 
 ## Contributing
 
-This project is in early development and not yet ready for contributions.
+This project is in active development. See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the current status and roadmap.
 
 ## License
 

@@ -2,108 +2,151 @@
 
 ## Incremental Development Approach
 
-Each phase below represents a complete, testable milestone. We'll only move to the next phase once the current one is fully functional and well-tested.
+Each phase represents a complete, testable milestone. We'll only move to the next phase once the current one is fully functional and well-tested.
 
-### Phase 1: Core Configuration (Completed)
+### Phase 1: Core Foundation (Completed)
 Goal: Basic configuration loading and validation
 
-- [x] Basic Settings Structure
+- [x] Basic CLI structure
+  - [x] Create core commands
+  - [x] Implement help system
+  - [x] Add configuration command
+- [x] Configuration System
   - [x] Create core settings structs
   - [x] Implement YAML loading
   - [x] Add environment variable support
   - [x] Write tests for config loading
   - [x] Add validation for required fields
-  
-Testable Outcomes:
-- [x] Can load `fastagent.config.yaml`
-- [x] Can override with environment variables
-- [x] Validates configuration correctness
-- [x] CLI can display current configuration
-
-### Phase 2: Basic Context & Logging (In Progress)
-Goal: Establish foundational context management and logging
-
-- [x] Simple Context Management
+- [x] Context Management
   - [x] Create base context struct
   - [x] Implement context initialization
-  - [x] Add basic cleanup handling
+  - [x] Add cleanup handling
   - [x] Add context-dependent interface
   - [x] Implement thread-safe context access
-  
-- [x] Basic Logging
+- [x] Logging Foundation
   - [x] Implement structured logging using Zap
   - [x] Add log levels and namespacing
   - [x] Create console and file output formats
   - [x] Add comprehensive test coverage
-  
-Next Steps:
-- [ ] Progress Display
-  - [ ] Implement progress bar UI
-  - [ ] Add progress event handling
-  - [ ] Support percentage updates
-- [ ] Event Filtering
-  - [ ] Add event type filtering
-  - [ ] Support namespace filtering
-  - [ ] Implement minimum level filtering
 
-Testable Outcomes:
-- [x] Can initialize and cleanup application context
-- [x] Components can safely access context
-- [x] Logs are properly formatted and leveled
-- [x] Context carries configuration through the app
-- [ ] Progress updates display correctly
-- [ ] Event filtering works as expected
+### Phase 2: Message & Memory Management (In Progress)
+Goal: Implement the core message handling system
 
-### Phase 3: MCP Server - Single Transport (Not Started)
-Goal: Implement basic MCP server support with stdio transport
+- [ ] Message Types and Interfaces
+  - [ ] Define base message interface
+  - [ ] Create provider-specific message types
+  - [ ] Implement message conversion utilities
+  - [ ] Add message validation
+- [ ] Memory System
+  - [ ] Define generic memory interface
+  - [ ] Create simple in-memory implementation
+  - [ ] Add thread-safe operations
+  - [ ] Implement history serialization
+- [ ] Message History
+  - [ ] Add prompt/conversation separation
+  - [ ] Implement history loading/saving
+  - [ ] Create message filtering system
+  - [ ] Add history management commands
 
-- [ ] Server Configuration
-  - [ ] Define server settings struct
-  - [ ] Implement stdio transport
-  - [ ] Add basic server lifecycle
+### Phase 3: Provider Integration
+Goal: Add initial model provider support
 
-- [ ] Server Registry
-  - [ ] Create registry interface
-  - [ ] Add server registration
-  - [ ] Implement basic connection management
-
-Testable Outcomes:
-- Can configure a simple MCP server
-- Can establish stdio connections
-- Basic server lifecycle works
-
-### Phase 4: Basic Workflow Support (Not Started)
-Goal: Simple workflow execution capability
-
-- [ ] Workflow Structure
-  - [ ] Define workflow interfaces
-  - [ ] Create basic workflow registry
-  - [ ] Implement simple execution
-
-- [ ] Task Management
-  - [ ] Add task registration
-  - [ ] Implement basic task execution
+- [ ] Base Provider Interface
+  - [ ] Define request/response types
   - [ ] Add error handling
+  - [ ] Implement rate limiting
+  - [ ] Create provider registry
+- [ ] Anthropic Integration
+  - [ ] Add Claude client support
+  - [ ] Implement message conversion
+  - [ ] Add tool calling support
+  - [ ] Handle streaming responses
+- [ ] OpenAI Integration
+  - [ ] Add chat completion support
+  - [ ] Implement function calling
+  - [ ] Add streaming capabilities
+  - [ ] Handle model-specific features
 
-Testable Outcomes:
-- Can define simple workflows
-- Can execute basic tasks
-- Proper error handling in place
+### Phase 4: Tool & Agent Runtime
+Goal: Enable basic agent capabilities
 
-### Future Phases (To Be Detailed Later)
-- Enhanced MCP Server Support (additional transports)
-- Advanced Workflow Features
-- Human Input & Progress Display
-- Telemetry & Monitoring
-- Additional Model Providers
+- [ ] Tool Interface
+  - [ ] Create tool registration system
+  - [ ] Add argument validation
+  - [ ] Implement result handling
+  - [ ] Add tool discovery
+- [ ] MCP Server Integration
+  - [ ] Add server lifecycle management
+  - [ ] Implement stdio transport
+  - [ ] Create server registry
+  - [ ] Add tool routing
+- [ ] Basic Agent Patterns
+  - [ ] Define agent interface
+  - [ ] Implement simple chaining
+  - [ ] Add tool-using capabilities
+  - [ ] Create basic workflows
 
-## Testing Strategy
+### Phase 5: Development Support
+Goal: Add testing and development tools
 
-Each phase will include:
-1. Unit tests for new functionality
-2. Integration tests for component interaction
-3. Example code demonstrating usage
-4. Documentation updates
+- [ ] Passthrough LLM
+  - [ ] Add message echo capability
+  - [ ] Implement tool simulation
+  - [ ] Create debugging helpers
+- [ ] Playback LLM
+  - [ ] Add conversation recording
+  - [ ] Implement replay system
+  - [ ] Create test scenarios
+- [ ] Testing Utilities
+  - [ ] Add mock MCP servers
+  - [ ] Create test fixtures
+  - [ ] Implement assertion helpers
+
+### Phase 6: Advanced Features
+Goal: Add production-ready features
+
+- [ ] Model Factory
+  - [ ] Add provider configuration
+  - [ ] Implement model aliases
+  - [ ] Add reasoning levels
+  - [ ] Create model selection logic
+- [ ] Progress System
+  - [ ] Add event tracking
+  - [ ] Implement progress display
+  - [ ] Create status updates
+- [ ] Advanced Workflows
+  - [ ] Add parallel execution
+  - [ ] Implement error handling
+  - [ ] Add resource management
+  - [ ] Create workflow patterns
+
+## Development Guidelines
+
+### 1. Type Safety First
+- Use Go's type system to enforce provider contracts
+- Leverage interfaces for flexibility
+- Maintain strict type boundaries
+- Use generics for provider-specific types
+
+### 2. Testing Strategy
+- Unit tests for core components
+- Integration tests for providers
+- Example-based tests for patterns
+- Mock providers for testing
+
+### 3. Documentation
+- Godoc for all exported types
+- Examples for common patterns
+- Architecture decision records
+- Clear API documentation
+
+### 4. Value Delivery
+Each phase delivers testable functionality:
+- Phase 2: Message handling system
+- Phase 3: Real LLM integration
+- Phase 4: Basic agent capabilities
+- Phase 5: Development tools
+- Phase 6: Production features
 
 ## Current Progress
 
@@ -127,36 +170,14 @@ Each phase will include:
   - [x] Comprehensive test coverage
 
 ### In Progress
-- [ ] Progress display system
-- [ ] Event filtering implementation
+- [ ] Message types and interfaces
+- [ ] Memory system implementation
 
 ### Next Steps
-1. Implement progress display UI
-2. Add event filtering support
-3. Begin MCP server implementation
-4. Add workflow support
-
-## Development Guidelines
-
-1. **Incremental Progress**
-   - Each change should be small and testable
-   - Keep changes focused and atomic
-   - Maintain working state at all times
-
-2. **Testing First**
-   - Write tests before implementing features
-   - Ensure all changes are covered by tests
-   - Include examples in tests
-
-3. **Documentation**
-   - Update docs with each change
-   - Include usage examples
-   - Keep migration plan current
-
-4. **Review Points**
-   - Review progress after each phase
-   - Adjust plan based on learnings
-   - Ensure maintainable code structure
+1. Complete message handling system
+2. Implement memory management
+3. Begin provider integration
+4. Add basic agent capabilities
 
 ## Questions & Decisions
 
@@ -178,6 +199,12 @@ Document key decisions and questions as we progress:
    - ✓ Maintained original interface for compatibility
    - ✓ Added structured logging with type safety
    - ✓ Implemented comprehensive test coverage
+
+4. Message System (In Progress)
+   - ✓ Decided on provider-specific message types
+   - ✓ Using generics for type safety
+   - ✓ Implementing conversion utilities
+   - ✓ Planning history management
 
 ## Resources
 
