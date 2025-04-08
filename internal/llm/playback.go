@@ -47,12 +47,13 @@ func (l *PlaybackLLM) getNextAssistantMessage() Message {
 
 	// Find next assistant message
 	for l.currentIndex < len(l.messages) {
-		msg := l.messages[l.currentIndex]
-		l.currentIndex++
-		if msg.Type == MessageTypeAssistant {
+		if l.messages[l.currentIndex].Type == MessageTypeAssistant {
+			msg := l.messages[l.currentIndex]
 			msg.Name = l.Name() // Ensure name is set
+			l.currentIndex++
 			return msg
 		}
+		l.currentIndex++
 	}
 
 	// If we get here, no more assistant messages
@@ -103,6 +104,19 @@ func (l *PlaybackLLM) Generate(ctx context.Context, msg Message, params *Request
 	}
 
 	return response, nil
+}
+
+// GenerateString overrides PassthroughLLM to use playback functionality
+func (l *PlaybackLLM) GenerateString(ctx context.Context, content string, params *RequestParams) (string, error) {
+	msg := Message{
+		Type:    MessageTypeUser,
+		Content: content,
+	}
+	response, err := l.Generate(ctx, msg, params)
+	if err != nil {
+		return "", err
+	}
+	return response.Content, nil
 }
 
 // Provider returns the provider name
