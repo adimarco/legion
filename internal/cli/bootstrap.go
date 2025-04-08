@@ -16,7 +16,7 @@ var exampleTypes = map[string]struct {
 	CreateDir   bool
 }{
 	"workflow": {
-		Description: "Example workflows demonstrating each of the patterns in Anthropic's\n" +
+		Description: "Example workflows demonstrating each of the patterns in Anthropic's " +
 			"'Building Effective Agents' paper, implemented in Go.",
 		Files: map[string]string{
 			"chaining.go":    workflowChainingTemplate,
@@ -29,7 +29,7 @@ var exampleTypes = map[string]struct {
 		CreateDir: true,
 	},
 	"researcher": {
-		Description: "Research agent example with evaluation/optimization capabilities.\n" +
+		Description: "Research agent example with evaluation/optimization capabilities. " +
 			"Uses Brave Search API and demonstrates advanced agent patterns.",
 		Files: map[string]string{
 			"researcher.go":         researcherTemplate,
@@ -67,26 +67,26 @@ func bootstrapCmd() *cobra.Command {
 
 func showBootstrapOverview() error {
 	color.Blue("\nFastAgent Example Applications")
-	fmt.Println("Build agents and compose workflows through practical examples\n")
+	fmt.Print("Build agents and compose workflows through practical examples\n\n")
 
-	fmt.Println("Available Examples:")
+	fmt.Print("Available Examples:\n")
 	for name, info := range exampleTypes {
 		color.Green("\n%s", name)
 		fmt.Printf("%s\n", info.Description)
-		fmt.Println("\nFiles:")
+		fmt.Print("\nFiles:\n")
 		for file := range info.Files {
 			fmt.Printf("  • %s\n", file)
 		}
 	}
 
-	fmt.Println("\nUsage:")
-	fmt.Println("  gofast bootstrap workflow DIR      Create workflow examples in DIR")
-	fmt.Println("  gofast bootstrap researcher DIR    Create researcher example in DIR")
-	fmt.Println("\nOptions:")
-	fmt.Println("  --force            Overwrite existing files")
-	fmt.Println("\nExamples:")
-	fmt.Println("  gofast bootstrap workflow .")
-	fmt.Println("  gofast bootstrap researcher . --force")
+	fmt.Print("\nUsage:\n")
+	fmt.Print("  gofast bootstrap workflow DIR      Create workflow examples in DIR\n")
+	fmt.Print("  gofast bootstrap researcher DIR    Create researcher example in DIR\n")
+	fmt.Print("\nOptions:\n")
+	fmt.Print("  --force            Overwrite existing files\n")
+	fmt.Print("\nExamples:\n")
+	fmt.Print("  gofast bootstrap workflow .\n")
+	fmt.Print("  gofast bootstrap researcher . --force\n")
 
 	return nil
 }

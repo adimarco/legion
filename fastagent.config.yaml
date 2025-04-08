@@ -1,0 +1,28 @@
+# FastAgent Configuration File
+
+# Default Model Configuration
+default_model: haiku
+
+# Logging and Console Configuration
+logger:
+  type: console
+  level: info
+  progress_display: true
+  path: fastagent.jsonl
+  batch_size: 100
+
+# MCP Servers
+mcp:
+  servers:
+    fetch:
+      name: "Fetch Server"
+      description: "MCP server for fetching web content"
+      transport: stdio
+      command: uvx
+      args: ["mcp-server-fetch"]
+    filesystem:
+      name: "Filesystem Server"
+      description: "MCP server for filesystem operations"
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "."] 

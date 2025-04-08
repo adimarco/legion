@@ -2,12 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+
+	"gofast/internal/config"
 )
 
 func configCmd() *cobra.Command {
@@ -54,35 +53,53 @@ Use --file to specify a different configuration file.`,
 }
 
 func showConfig(configFile string) error {
-	// Resolve the config file path
-	absPath, err := filepath.Abs(configFile)
+	// Load settings from file
+	settings, err := config.LoadSettings(configFile)
 	if err != nil {
-		return fmt.Errorf("failed to resolve config file path: %w", err)
-	}
-
-	// Check if file exists
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		return fmt.Errorf("configuration file not found: %s", absPath)
-	}
-
-	// Read and parse the config file
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Parse YAML into a generic map
-	var config map[string]interface{}
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("failed to parse config file: %w", err)
+		return fmt.Errorf("failed to load config file: %w", err)
 	}
 
 	// Display the configuration
 	color.Blue("\nFastAgent Configuration")
-	fmt.Printf("\nConfiguration file: %s\n\n", absPath)
+	fmt.Printf("\nConfiguration file: %s\n\n", configFile)
 
-	// Display the configuration in a formatted way
-	displayConfig(config, 0)
+	// Display default model
+	color.Green("default_model: %s\n", settings.DefaultModel)
+
+	// Display logger settings
+	color.Green("\nlogger:")
+	fmt.Printf("  type: %s\n", settings.Logger.Type)
+	fmt.Printf("  level: %s\n", settings.Logger.Level)
+	fmt.Printf("  progress_display: %v\n", settings.Logger.ProgressDisplay)
+	fmt.Printf("  path: %s\n", settings.Logger.Path)
+	fmt.Printf("  batch_size: %d\n", settings.Logger.BatchSize)
+
+	// Display MCP server settings
+	color.Green("\nmcp:")
+	color.Green("  servers:")
+	for name, server := range settings.MCP.Servers {
+		fmt.Printf("    %s:\n", name)
+		fmt.Printf("      name: %s\n", server.Name)
+		if server.Description != "" {
+			fmt.Printf("      description: %s\n", server.Description)
+		}
+		fmt.Printf("      transport: %s\n", server.Transport)
+		if server.Command != "" {
+			fmt.Printf("      command: %s\n", server.Command)
+		}
+		if len(server.Args) > 0 {
+			fmt.Printf("      args: %v\n", server.Args)
+		}
+		if server.URL != "" {
+			fmt.Printf("      url: %s\n", server.URL)
+		}
+		if len(server.Env) > 0 {
+			fmt.Printf("      env:\n")
+			for k, v := range server.Env {
+				fmt.Printf("        %s: %s\n", k, v)
+			}
+		}
+	}
 
 	// Show some helpful tips
 	if verbose {
@@ -93,32 +110,4 @@ func showConfig(configFile string) error {
 	}
 
 	return nil
-}
-
-func displayConfig(config map[string]interface{}, indent int) {
-	for key, value := range config {
-		indentStr := fmt.Sprintf("%*s", indent*2, "")
-
-		switch v := value.(type) {
-		case map[string]interface{}:
-			color.Green("%s%s:", indentStr, key)
-			displayConfig(v, indent+1)
-		case []interface{}:
-			color.Green("%s%s:", indentStr, key)
-			for _, item := range v {
-				fmt.Printf("%s  - %v\n", indentStr, item)
-			}
-		default:
-			if verbose {
-				// In verbose mode, show more details about configuration values
-				fmt.Printf("%s%s: %v", indentStr, key, value)
-				if key == "default_model" {
-					fmt.Printf(" (current)")
-				}
-				fmt.Println()
-			} else {
-				fmt.Printf("%s%s: %v\n", indentStr, key, value)
-			}
-		}
-	}
 }
