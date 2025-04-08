@@ -1,52 +1,143 @@
+/*
+Package llm provides the core abstractions and implementations for Large Language Model (LLM) interactions.
+
+Design Philosophy:
+The package is built around several key principles:
+
+ 1. Provider Agnosticism: The core interfaces are designed to be provider-agnostic,
+    allowing seamless integration of different LLM providers (e.g., Anthropic, OpenAI)
+    without changing the consuming code.
+
+ 2. Testing First: The package includes robust testing tools (PassthroughLLM, PlaybackLLM)
+    that enable thorough testing of agent logic without making actual API calls.
+
+ 3. Flexible Memory Management: The Memory interface allows for different memory
+    implementations while maintaining a consistent interface for history management.
+
+ 4. Tool Integration: The design supports tool calls and responses as first-class
+    citizens, enabling complex agent behaviors and workflows.
+
+Usage:
+Most users will interact with this package through the AugmentedLLM interface,
+which provides high-level operations for generating responses and managing context.
+For testing, the PassthroughLLM and PlaybackLLM implementations provide
+deterministic behaviors without external dependencies.
+*/
 package llm
 
 import (
 	"context"
+	"strings"
 
 	"gofast/internal/config"
 )
 
-// MessageType represents the role of a message in a conversation
+// MessageType represents the role of a message in a conversation.
+// This follows the common pattern used by major LLM providers where
+// messages have distinct roles in the conversation.
 type MessageType string
 
 const (
-	MessageTypeSystem    MessageType = "system"
-	MessageTypeUser      MessageType = "user"
+	// MessageTypeSystem represents system-level instructions or context
+	MessageTypeSystem MessageType = "system"
+	// MessageTypeUser represents messages from the user/human
+	MessageTypeUser MessageType = "user"
+	// MessageTypeAssistant represents messages from the AI assistant
 	MessageTypeAssistant MessageType = "assistant"
-	MessageTypeTool      MessageType = "tool"
+	// MessageTypeTool represents messages related to tool operations
+	MessageTypeTool MessageType = "tool"
 )
 
-// Message represents a generic message in a conversation
+// Message represents a generic message in a conversation.
+// The design is intentionally provider-agnostic, allowing for conversion
+// to provider-specific formats as needed. It supports both simple text
+// messages and complex interactions like tool calls.
 type Message struct {
-	Type      MessageType    `json:"type"`
-	Content   string         `json:"content"`
-	Name      string         `json:"name,omitempty"`
-	ToolCalls []ToolCall     `json:"tool_calls,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	// Type indicates the role of this message in the conversation
+	Type MessageType `json:"type"`
+	// Content holds the primary text content of the message
+	Content string `json:"content"`
+	// Name optionally identifies the sender (useful for tool calls)
+	Name string `json:"name,omitempty"`
+	// ToolCalls holds any tool operations requested by this message
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// Metadata allows for provider-specific or custom data
+	Metadata map[string]any `json:"metadata,omitempty"`
+	// Parts supports multipart messages (e.g., text + images)
+	Parts []MessagePart `json:"parts,omitempty"`
 }
 
-// ToolCall represents a request to call a tool
+// MessagePart represents a part of a multipart message.
+// This abstraction allows for future support of multi-modal
+// interactions (text, images, audio, etc.) while maintaining
+// backward compatibility.
+type MessagePart struct {
+	// Type indicates the content type of this part
+	Type string `json:"type"`
+	// Content holds the actual content
+	Content string `json:"content"`
+	// Data holds type-specific metadata
+	Data map[string]any `json:"data,omitempty"`
+}
+
+// GetAllText returns all text content from a message, including parts.
+// This is particularly useful when you need to process all text content
+// regardless of its location in the message structure.
+func (m *Message) GetAllText() string {
+	texts := []string{m.Content}
+	for _, part := range m.Parts {
+		if part.Content != "" {
+			texts = append(texts, part.Content)
+		}
+	}
+	return strings.Join(texts, "\n")
+}
+
+// ToolCall represents a request to call a tool.
+// The design supports both synchronous and asynchronous tool execution,
+// with the Response field allowing for result storage.
 type ToolCall struct {
-	ID       string         `json:"id"`
-	Name     string         `json:"name"`
-	Args     map[string]any `json:"args"`
-	Response string         `json:"response,omitempty"`
+	// ID uniquely identifies this tool call
+	ID string `json:"id"`
+	// Name identifies which tool to call
+	Name string `json:"name"`
+	// Args holds the parameters for the tool call
+	Args map[string]any `json:"args"`
+	// Response stores the result of the tool call
+	Response string `json:"response,omitempty"`
 }
 
-// RequestParams configures how the LLM should process the request
+// RequestParams configures how the LLM should process the request.
+// This abstraction allows for provider-agnostic configuration while
+// supporting provider-specific features through the Metadata field.
 type RequestParams struct {
-	Model         string         `json:"model"`
-	SystemPrompt  string         `json:"system_prompt,omitempty"`
-	MaxTokens     int            `json:"max_tokens,omitempty"`
-	Temperature   float32        `json:"temperature,omitempty"`
-	StopSequences []string       `json:"stop_sequences,omitempty"`
-	UseHistory    bool           `json:"use_history"`
-	ParallelTools bool           `json:"parallel_tools"`
-	MaxIterations int            `json:"max_iterations"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
+	// Model specifies which model to use
+	Model string `json:"model"`
+	// SystemPrompt provides system-level instructions
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	// MaxTokens limits the response length
+	MaxTokens int `json:"max_tokens,omitempty"`
+	// Temperature controls response randomness
+	Temperature float32 `json:"temperature,omitempty"`
+	// StopSequences defines custom stop tokens
+	StopSequences []string `json:"stop_sequences,omitempty"`
+	// UseHistory determines if conversation history should be included
+	UseHistory bool `json:"use_history"`
+	// ParallelTools enables concurrent tool execution
+	ParallelTools bool `json:"parallel_tools"`
+	// MaxIterations limits the number of generation attempts
+	MaxIterations int `json:"max_iterations"`
+	// Metadata allows for provider-specific parameters
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// AugmentedLLM represents an LLM enhanced with tools, memory, and context management
+// AugmentedLLM represents an LLM enhanced with tools, memory, and context management.
+// This is the primary interface for interacting with LLMs in the system.
+// The interface is designed to be:
+// 1. Provider-agnostic: Works with any LLM provider
+// 2. Context-aware: All operations receive a context.Context
+// 3. Tool-capable: Supports tool calls and responses
+// 4. Memory-enabled: Can maintain conversation history
 type AugmentedLLM interface {
 	// Initialize sets up the LLM with configuration
 	Initialize(ctx context.Context, cfg *config.Settings) error
@@ -70,7 +161,9 @@ type AugmentedLLM interface {
 	Cleanup() error
 }
 
-// Memory manages conversation history and prompt storage
+// Memory manages conversation history and prompt storage.
+// The interface is intentionally simple to allow for different
+// implementations (e.g., in-memory, persistent, distributed).
 type Memory interface {
 	// Add adds a message to history
 	Add(msg Message, isPrompt bool) error
@@ -82,7 +175,11 @@ type Memory interface {
 	Clear(clearPrompts bool) error
 }
 
-// Provider represents an LLM provider (e.g., Anthropic, OpenAI)
+// Provider represents an LLM provider (e.g., Anthropic, OpenAI).
+// This abstraction allows for:
+// 1. Lazy initialization of provider resources
+// 2. Provider-specific configuration handling
+// 3. Factory pattern for creating LLM instances
 type Provider interface {
 	// Initialize sets up the provider with configuration
 	Initialize(ctx context.Context, cfg *config.Settings) error

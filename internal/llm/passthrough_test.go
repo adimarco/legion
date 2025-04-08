@@ -161,4 +161,58 @@ func TestPassthroughLLM(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, history)
 	})
+
+	t.Run("multipart messages", func(t *testing.T) {
+		llm := NewPassthroughLLM("test")
+		ctx := context.Background()
+
+		// Test message with multiple parts
+		msg := Message{
+			Type:    MessageTypeUser,
+			Content: "main content",
+			Parts: []MessagePart{
+				{Type: "text", Content: "part 1"},
+				{Type: "text", Content: "part 2"},
+			},
+		}
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "main content")
+		assert.Contains(t, response.Content, "part 1")
+		assert.Contains(t, response.Content, "part 2")
+	})
+
+	t.Run("tool call formatting", func(t *testing.T) {
+		llm := NewPassthroughLLM("test")
+		ctx := context.Background()
+
+		// Test tool call with no arguments
+		msg := Message{
+			Type:    MessageTypeUser,
+			Content: CALL_TOOL_INDICATOR + " test_tool",
+		}
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "Tool call: test_tool")
+		assert.Contains(t, response.Content, "no arguments")
+
+		// Test tool call with arguments
+		msg = Message{
+			Type:    MessageTypeUser,
+			Content: CALL_TOOL_INDICATOR + ` test_tool {"key": "value", "num": 42}`,
+		}
+		response, err = llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "Tool call: test_tool")
+		assert.Contains(t, response.Content, `"key": "value"`)
+		assert.Contains(t, response.Content, `"num": 42`)
+
+		// Test tool call with response
+		result, err := llm.CallTool(ctx, ToolCall{
+			Name:     "test_tool",
+			Response: "success!",
+		})
+		require.NoError(t, err)
+		assert.Contains(t, result, "Tool 'test_tool' result: success!")
+	})
 }

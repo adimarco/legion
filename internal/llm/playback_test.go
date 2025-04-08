@@ -23,17 +23,23 @@ func TestPlaybackLLM(t *testing.T) {
 		}
 		llm.LoadMessages(messages)
 
-		// First call should return HISTORY LOADED
+		// First call should echo back since playback hasn't started
 		response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "start"}, nil)
 		require.NoError(t, err)
-		assert.Contains(t, response.Content, "HISTORY LOADED")
+		assert.Equal(t, "start", response.Content)
+
+		// Start playback
+		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "!start"}, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "Starting playback")
 		assert.Contains(t, response.Content, "4 messages")
 
-		// Subsequent calls should return assistant messages in sequence
+		// Get first assistant message
 		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "next"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hi there", response.Content)
 
+		// Get second assistant message
 		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "next"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "I'm good", response.Content)
@@ -51,27 +57,68 @@ func TestPlaybackLLM(t *testing.T) {
 		}
 		llm.LoadMessages(messages)
 
-		// First call: HISTORY LOADED
-		response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "start"}, nil)
+		// Start playback
+		response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "!start"}, nil)
 		require.NoError(t, err)
-		assert.Contains(t, response.Content, "HISTORY LOADED")
+		assert.Contains(t, response.Content, "Starting playback")
 
-		// Second call: get the one assistant message
+		// Get the one assistant message
 		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "next"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hi there", response.Content)
 
-		// Third call: should get exhausted message
+		// Should get exhausted message
 		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "next"}, nil)
 		require.NoError(t, err)
 		assert.Contains(t, response.Content, "MESSAGES EXHAUSTED")
 		assert.Contains(t, response.Content, "0 overage")
 
-		// Fourth call: should increment overage counter
+		// Should increment overage counter
 		response, err = llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "next"}, nil)
 		require.NoError(t, err)
 		assert.Contains(t, response.Content, "MESSAGES EXHAUSTED")
 		assert.Contains(t, response.Content, "1 overage")
+	})
+
+	t.Run("record and trigger responses", func(t *testing.T) {
+		llm := NewPlaybackLLM("test")
+		ctx := context.Background()
+		require.NoError(t, llm.Initialize(ctx, nil))
+
+		// Record some responses
+		recordMsg := Message{
+			Type:    MessageTypeUser,
+			Content: "!record hello Hi there, how can I help?",
+		}
+		response, err := llm.Generate(ctx, recordMsg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "Recorded response for trigger")
+
+		// Test invalid record command
+		invalidRecord := Message{
+			Type:    MessageTypeUser,
+			Content: "!record",
+		}
+		_, err = llm.Generate(ctx, invalidRecord, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid record response command")
+
+		// Test trigger matching
+		triggers := []struct {
+			input    string
+			expected string
+		}{
+			{"hello world", "Hi there, how can I help?"},
+			{"saying hello to you", "Hi there, how can I help?"},
+			{"different message", "different message"}, // Should echo back
+		}
+
+		for _, tt := range triggers {
+			msg := Message{Type: MessageTypeUser, Content: tt.input}
+			response, err := llm.Generate(ctx, msg, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, response.Content)
+		}
 	})
 
 	t.Run("history management", func(t *testing.T) {
@@ -79,28 +126,29 @@ func TestPlaybackLLM(t *testing.T) {
 		ctx := context.Background()
 		require.NoError(t, llm.Initialize(ctx, nil))
 
-		messages := []Message{
-			{Type: MessageTypeUser, Content: "hello"},
-			{Type: MessageTypeAssistant, Content: "hi there"},
-		}
-		llm.LoadMessages(messages)
-
 		// Generate with history enabled
 		params := &RequestParams{UseHistory: true}
 
-		// First call should store messages as prompts and return HISTORY LOADED
-		response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "start"}, params)
-		require.NoError(t, err)
-		assert.Contains(t, response.Content, "HISTORY LOADED")
+		// Record and trigger some responses
+		messages := []struct {
+			input    string
+			expected string
+		}{
+			{"!record hello Hi there!", "Recorded response for trigger: hello"},
+			{"hello world", "Hi there!"},
+			{"another message", "another message"},
+		}
 
-		// Verify history contains loaded messages plus the user message and response
+		for _, msg := range messages {
+			response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: msg.input}, params)
+			require.NoError(t, err)
+			assert.Equal(t, msg.expected, response.Content)
+		}
+
+		// Verify history contains all messages
 		history, err := llm.memory.Get(true)
 		require.NoError(t, err)
-		assert.Len(t, history, 4) // 2 loaded messages + user message + HISTORY LOADED response
-		assert.Equal(t, "hello", history[0].Content)
-		assert.Equal(t, "hi there", history[1].Content)
-		assert.Equal(t, "start", history[2].Content)
-		assert.Contains(t, history[3].Content, "HISTORY LOADED")
+		assert.Len(t, history, len(messages)*2) // Each exchange has user message + response
 	})
 
 	t.Run("cleanup and reinitialization", func(t *testing.T) {
@@ -108,26 +156,85 @@ func TestPlaybackLLM(t *testing.T) {
 		ctx := context.Background()
 		require.NoError(t, llm.Initialize(ctx, nil))
 
-		// Load and use some messages
-		messages := []Message{
-			{Type: MessageTypeAssistant, Content: "hi there"},
+		// Record some responses and load messages
+		recordMsg := Message{
+			Type:    MessageTypeUser,
+			Content: "!record hello Hi there!",
 		}
-		llm.LoadMessages(messages)
-
-		_, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "start"}, nil)
+		_, err := llm.Generate(ctx, recordMsg, nil)
 		require.NoError(t, err)
+
+		llm.LoadMessages([]Message{
+			{Type: MessageTypeAssistant, Content: "test message"},
+		})
 
 		// Cleanup should reset everything
 		require.NoError(t, llm.Cleanup())
 		assert.Empty(t, llm.messages)
-		assert.Equal(t, -1, llm.currentIndex)
-		assert.Equal(t, -1, llm.overage)
+		assert.Equal(t, 0, llm.currentIndex)
+		assert.Equal(t, 0, llm.overage)
+		assert.Empty(t, llm.responses)
+		assert.False(t, llm.playbackStarted)
 
 		// Should be able to reinitialize
 		require.NoError(t, llm.Initialize(ctx, nil))
-		llm.LoadMessages(messages)
-		response, err := llm.Generate(ctx, Message{Type: MessageTypeUser, Content: "start"}, nil)
+
+		// Verify clean state
+		msg := Message{Type: MessageTypeUser, Content: "hello"}
+		response, err := llm.Generate(ctx, msg, nil)
 		require.NoError(t, err)
-		assert.Contains(t, response.Content, "HISTORY LOADED")
+		assert.Equal(t, "hello", response.Content) // Should echo back, no recorded response
+	})
+
+	t.Run("concurrent operations", func(t *testing.T) {
+		llm := NewPlaybackLLM("test")
+		ctx := context.Background()
+		require.NoError(t, llm.Initialize(ctx, nil))
+
+		// Record a response
+		recordMsg := Message{
+			Type:    MessageTypeUser,
+			Content: "!record hello Hi there!",
+		}
+		_, err := llm.Generate(ctx, recordMsg, nil)
+		require.NoError(t, err)
+
+		// Run concurrent operations
+		done := make(chan bool)
+		for i := 0; i < 10; i++ {
+			go func() {
+				msg := Message{Type: MessageTypeUser, Content: "hello"}
+				response, err := llm.Generate(ctx, msg, nil)
+				require.NoError(t, err)
+				assert.Equal(t, "Hi there!", response.Content)
+				done <- true
+			}()
+		}
+
+		// Wait for all goroutines
+		for i := 0; i < 10; i++ {
+			<-done
+		}
+	})
+
+	t.Run("tool call integration", func(t *testing.T) {
+		llm := NewPlaybackLLM("test")
+		ctx := context.Background()
+		require.NoError(t, llm.Initialize(ctx, nil))
+
+		// Record a response that includes a tool call
+		recordMsg := Message{
+			Type:    MessageTypeUser,
+			Content: "!record search " + CALL_TOOL_INDICATOR + "search {\"query\": \"test\"}",
+		}
+		_, err := llm.Generate(ctx, recordMsg, nil)
+		require.NoError(t, err)
+
+		// Trigger the tool call
+		msg := Message{Type: MessageTypeUser, Content: "please search for something"}
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, "Tool call: search")
+		assert.Contains(t, response.Content, `"query": "test"`)
 	})
 }
