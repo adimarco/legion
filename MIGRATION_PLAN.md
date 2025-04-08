@@ -29,80 +29,82 @@ Goal: Basic configuration loading and validation
   - [x] Create console and file output formats
   - [x] Add comprehensive test coverage
 
-### Phase 2: Message & Memory Management (In Progress)
-Goal: Implement the core message handling system
+### Phase 2: LLM Foundation (In Progress)
+Goal: Establish core LLM abstractions and testing tools
 
-- [ ] Message Types and Interfaces
-  - [ ] Define base message interface
-  - [ ] Create provider-specific message types
-  - [ ] Implement message conversion utilities
-  - [ ] Add message validation
-- [ ] Memory System
-  - [ ] Define generic memory interface
-  - [ ] Create simple in-memory implementation
-  - [ ] Add thread-safe operations
-  - [ ] Implement history serialization
-- [ ] Message History
-  - [ ] Add prompt/conversation separation
-  - [ ] Implement history loading/saving
-  - [ ] Create message filtering system
-  - [ ] Add history management commands
+- [x] Core LLM Types
+  - [x] Define Message and ToolCall types
+  - [x] Create AugmentedLLM interface
+  - [x] Add Provider interface
+  - [x] Define request/response types
 
-### Phase 3: Provider Integration
+- [x] Memory System
+  - [x] Define Memory interface
+  - [x] Implement SimpleMemory
+  - [x] Add thread-safe operations
+  - [x] Support prompt/history separation
+
+- [x] Testing Tools
+  - [x] Implement PassthroughLLM
+    - [x] Basic message echo
+    - [x] Fixed response support
+    - [x] Tool call parsing
+    - [x] History management
+  - [x] Implement PlaybackLLM
+    - [x] Message sequence recording
+    - [x] Ordered playback
+    - [x] Exhaustion handling
+    - [x] History management
+
+- [ ] Message Serialization
+  - [ ] YAML format support
+  - [ ] JSON format support
+  - [ ] History save/load
+  - [ ] Test scenario support
+
+### Phase 3: Provider Integration (Not Started)
 Goal: Add initial model provider support
 
-- [ ] Base Provider Interface
-  - [ ] Define request/response types
-  - [ ] Add error handling
+- [ ] Base Provider Implementation
+  - [ ] Define provider registry
+  - [ ] Add model factory support
   - [ ] Implement rate limiting
-  - [ ] Create provider registry
+  - [ ] Add error handling
+
 - [ ] Anthropic Integration
   - [ ] Add Claude client support
   - [ ] Implement message conversion
   - [ ] Add tool calling support
   - [ ] Handle streaming responses
+
 - [ ] OpenAI Integration
   - [ ] Add chat completion support
   - [ ] Implement function calling
   - [ ] Add streaming capabilities
   - [ ] Handle model-specific features
 
-### Phase 4: Tool & Agent Runtime
-Goal: Enable basic agent capabilities
+### Phase 4: Agent Runtime (Not Started)
+Goal: Enable agent composition and workflows
 
-- [ ] Tool Interface
-  - [ ] Create tool registration system
+- [ ] Tool System
+  - [ ] Define tool interfaces
   - [ ] Add argument validation
   - [ ] Implement result handling
   - [ ] Add tool discovery
+
 - [ ] MCP Server Integration
   - [ ] Add server lifecycle management
   - [ ] Implement stdio transport
   - [ ] Create server registry
   - [ ] Add tool routing
-- [ ] Basic Agent Patterns
+
+- [ ] Agent Patterns
   - [ ] Define agent interface
   - [ ] Implement simple chaining
-  - [ ] Add tool-using capabilities
-  - [ ] Create basic workflows
+  - [ ] Add parallel execution
+  - [ ] Support router pattern
 
-### Phase 5: Development Support
-Goal: Add testing and development tools
-
-- [ ] Passthrough LLM
-  - [ ] Add message echo capability
-  - [ ] Implement tool simulation
-  - [ ] Create debugging helpers
-- [ ] Playback LLM
-  - [ ] Add conversation recording
-  - [ ] Implement replay system
-  - [ ] Create test scenarios
-- [ ] Testing Utilities
-  - [ ] Add mock MCP servers
-  - [ ] Create test fixtures
-  - [ ] Implement assertion helpers
-
-### Phase 6: Advanced Features
+### Phase 5: Advanced Features (Not Started)
 Goal: Add production-ready features
 
 - [ ] Model Factory
@@ -110,10 +112,12 @@ Goal: Add production-ready features
   - [ ] Implement model aliases
   - [ ] Add reasoning levels
   - [ ] Create model selection logic
+
 - [ ] Progress System
   - [ ] Add event tracking
   - [ ] Implement progress display
   - [ ] Create status updates
+
 - [ ] Advanced Workflows
   - [ ] Add parallel execution
   - [ ] Implement error handling
@@ -142,69 +146,57 @@ Goal: Add production-ready features
 
 ### 4. Value Delivery
 Each phase delivers testable functionality:
-- Phase 2: Message handling system
+- Phase 2: Testing tools and LLM abstractions
 - Phase 3: Real LLM integration
 - Phase 4: Basic agent capabilities
-- Phase 5: Development tools
-- Phase 6: Production features
+- Phase 5: Production features
 
 ## Current Progress
 
 ### Completed
 - [x] Basic CLI structure
-- [x] Initial command implementation
-- [x] Project structure
-- [x] Basic config command
-- [x] Configuration loading and validation
-- [x] Environment variable support
-- [x] Configuration tests
-- [x] Context system implementation
-  - [x] Global and local contexts
-  - [x] Thread-safe context management
-  - [x] Context-dependent interface
-  - [x] Comprehensive test coverage
-- [x] Logging system implementation
-  - [x] Integration with Uber's Zap
-  - [x] Structured logging support
-  - [x] Multiple output formats
-  - [x] Comprehensive test coverage
+- [x] Configuration system
+- [x] Context management
+- [x] Logging foundation
+- [x] Core LLM types
+- [x] Memory system
+- [x] PassthroughLLM
+- [x] PlaybackLLM
 
 ### In Progress
-- [ ] Message types and interfaces
-- [ ] Memory system implementation
+- [ ] Message serialization
+- [ ] Model factory integration
 
 ### Next Steps
-1. Complete message handling system
-2. Implement memory management
-3. Begin provider integration
-4. Add basic agent capabilities
+1. Implement message serialization
+2. Add model factory support
+3. Begin Anthropic integration
+4. Start on tool system
 
 ## Questions & Decisions
 
-Document key decisions and questions as we progress:
+1. Configuration Structure (✓)
+   - Nested configurations handled through struct embedding
+   - Environment variables use FASTAGENT_ prefix
+   - Validation with specific error messages
 
-1. Configuration Structure
-   - ✓ Nested configurations handled through struct embedding
-   - ✓ Environment variables use FASTAGENT_ prefix with structured naming
-   - ✓ Validation implemented with specific error messages
+2. Context Management (✓)
+   - Global state through thread-safe singleton
+   - Context cancellation through cleanup
+   - Resource cleanup with error handling
+   - Type-safe context switching
 
-2. Context Management (Completed)
-   - ✓ Global state handled through thread-safe singleton
-   - ✓ Context cancellation handled through cleanup methods
-   - ✓ Resource cleanup implemented with proper error handling
-   - ✓ Type-safe context switching for components
+3. Logging System (✓)
+   - Using Uber's Zap for performance
+   - Maintained original interface
+   - Added structured logging
+   - Comprehensive test coverage
 
-3. Logging System (Completed)
-   - ✓ Adopted Uber's Zap for performance and features
-   - ✓ Maintained original interface for compatibility
-   - ✓ Added structured logging with type safety
-   - ✓ Implemented comprehensive test coverage
-
-4. Message System (In Progress)
-   - ✓ Decided on provider-specific message types
-   - ✓ Using generics for type safety
-   - ✓ Implementing conversion utilities
-   - ✓ Planning history management
+4. LLM Abstractions (✓)
+   - Provider-agnostic interfaces
+   - Generic message types
+   - Clean tool integration
+   - Strong testing support
 
 ## Resources
 
