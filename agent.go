@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/adimarco/hive/internal/llm"
 )
@@ -202,4 +203,27 @@ func (ra *RunningAgent) Chat() error {
 
 		fmt.Fprintf(ra.agent.output, "Assistant: %s\n", response)
 	}
+}
+
+// NewDefaultAgent creates a new agent with sensible defaults
+func NewDefaultAgent(instruction string) *Agent {
+	// Generate a unique name if not provided
+	name := fmt.Sprintf("agent-%d", time.Now().UnixNano())
+
+	// Create agent with sensible defaults
+	return New(name, instruction).
+		WithModel("claude-3-haiku-20240307").
+		WithHistory()
+}
+
+// Send sends a message to the agent and returns the response
+func (a *Agent) Send(msg string) (string, error) {
+	// Create running agent with background context
+	ra, err := a.Run(context.Background())
+	if err != nil {
+		return "", fmt.Errorf("failed to start agent: %w", err)
+	}
+
+	// Send message and get response
+	return ra.Send(msg)
 }
