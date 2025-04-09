@@ -1,4 +1,4 @@
-package fastagent
+package hive
 
 import "fmt"
 
@@ -23,7 +23,7 @@ func (t *Task) AssignTo(member, question string) *Task {
 }
 
 // Run executes the task with the given team
-func (t *Task) Run(team *FastAgent) (map[string]string, error) {
+func (t *Task) Run(team *Team) (map[string]string, error) {
 	responses := make(map[string]string)
 	for member, question := range t.assignments {
 		response, err := team.Send(member, question)
@@ -59,7 +59,7 @@ func (s *SynthesisRequest) WithPrompt(prompt string) *SynthesisRequest {
 }
 
 // SendTo sends the synthesis request to the specified team member
-func (s *SynthesisRequest) SendTo(team *FastAgent, member string) (string, error) {
+func (s *SynthesisRequest) SendTo(team *Team, member string) (string, error) {
 	summary := "Based on these findings:\n\n"
 	for member, response := range s.responses {
 		summary += fmt.Sprintf("%s found: %s\n\n", member, response)

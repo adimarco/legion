@@ -1,4 +1,5 @@
-package agent
+//go:generate mockery --name AugmentedLLM --dir ../internal/llm --output ./mocks --outpkg mocks --with-expecter --testonly
+package hive
 
 import (
 	"context"
@@ -9,97 +10,81 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/adimarco/hive/internal/config"
 	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/internal/llm/mocks"
 )
 
-// mockLLM implements a controlled test environment
-type mockLLM struct {
-	responses      map[string]string
-	delay          time.Duration
-	errorOnMessage string
-	mu             sync.RWMutex
+// setupMockLLM creates and configures a mock LLM for testing
+func setupMockLLM(t *testing.T, errorOnMessage string, delay time.Duration) *mocks.AugmentedLLM {
+	mockLLM := mocks.NewAugmentedLLM(t)
+
+	// Basic method expectations
+	mockLLM.EXPECT().Name().Return("mock").Maybe()
+	mockLLM.EXPECT().Provider().Return("mock").Maybe()
+	mockLLM.EXPECT().Initialize(mock.Anything, mock.Anything).Return(nil).Maybe()
+	mockLLM.EXPECT().Cleanup().Return(nil).Maybe()
+
+	// Generate method with error handling and delay
+	mockLLM.EXPECT().Generate(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, msg llm.Message, params *llm.RequestParams) (llm.Message, error) {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+		if msg.Content == errorOnMessage {
+			return llm.Message{Type: llm.MessageTypeSystem, Content: "mock error"}, errors.New("mock error")
+		}
+		return llm.Message{
+			Type:    llm.MessageTypeAssistant,
+			Content: "mock response for: " + msg.Content,
+		}, nil
+	}).Maybe()
+
+	// GenerateString method with error handling and delay
+	mockLLM.EXPECT().GenerateString(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, content string, params *llm.RequestParams) (string, error) {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+		if content == errorOnMessage {
+			return "", errors.New("mock error")
+		}
+		return "mock response for: " + content, nil
+	}).Maybe()
+
+	return mockLLM
 }
 
-func newMockLLM() *mockLLM {
-	return &mockLLM{
-		responses: make(map[string]string),
+// testAgent returns a basic agent for testing
+func testAgent(name string) *Agent {
+	agent := New(name, "You are a test agent. Respond briefly and directly.")
+	agent.params = &llm.RequestParams{
+		Tools:  make([]string, 0),
+		Config: make(map[string]any),
 	}
-}
-
-func (m *mockLLM) Initialize(ctx context.Context, cfg *config.Settings) error { return nil }
-func (m *mockLLM) Name() string                                               { return "mock" }
-func (m *mockLLM) Provider() string                                           { return "mock" }
-func (m *mockLLM) Cleanup() error                                             { return nil }
-
-func (m *mockLLM) Generate(ctx context.Context, msg llm.Message, params *llm.RequestParams) (llm.Message, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if m.delay > 0 {
-		time.Sleep(m.delay)
-	}
-
-	if msg.Content == m.errorOnMessage {
-		return llm.Message{}, errors.New("mock error")
-	}
-
-	response, ok := m.responses[msg.Content]
-	if !ok {
-		response = "mock response for: " + msg.Content
-	}
-
-	return llm.Message{
-		Type:    llm.MessageTypeAssistant,
-		Content: response,
-	}, nil
-}
-
-func (m *mockLLM) GenerateString(ctx context.Context, content string, params *llm.RequestParams) (string, error) {
-	msg := llm.Message{
-		Type:    llm.MessageTypeUser,
-		Content: content,
-	}
-	response, err := m.Generate(ctx, msg, params)
-	if err != nil {
-		return "", err
-	}
-	return response.Content, nil
-}
-
-func (m *mockLLM) CallTool(ctx context.Context, call llm.ToolCall) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-// testConfig returns a basic agent config for testing
-func testConfig(name string) AgentConfig {
-	return AgentConfig{
-		Name:        name,
-		Type:        AgentTypeBasic,
-		Instruction: "You are a test agent. Respond briefly and directly.",
-	}
+	return agent
 }
 
 func TestChannelAgent(t *testing.T) {
 	t.Run("basic operation", func(t *testing.T) {
-		mock := newMockLLM()
-		agent := NewChannelAgent(testConfig("basic"), mock)
+		mock := setupMockLLM(t, "", 0)
+		agent := testAgent("basic")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Send a message
-		require.NoError(t, agent.Send("test message"))
+		require.NoError(t, ca.Send("test message"))
 
 		// Get response
 		select {
-		case response := <-agent.Output():
+		case response := <-ca.Output():
 			assert.Equal(t, "mock response for: test message", response)
-		case err := <-agent.Errors():
+		case err := <-ca.Errors():
 			t.Fatalf("unexpected error: %v", err)
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for response")
@@ -107,13 +92,15 @@ func TestChannelAgent(t *testing.T) {
 	})
 
 	t.Run("concurrent message handling", func(t *testing.T) {
-		mock := newMockLLM()
-		agent := NewChannelAgent(testConfig("concurrent"), mock)
+		mock := setupMockLLM(t, "", 0)
+		agent := testAgent("concurrent")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Send multiple messages concurrently
 		const messageCount = 100
@@ -127,12 +114,12 @@ func TestChannelAgent(t *testing.T) {
 			defer close(collectorDone)
 			for {
 				select {
-				case resp, ok := <-agent.Output():
+				case resp, ok := <-ca.Output():
 					if !ok {
 						return
 					}
 					responses <- resp
-				case err, ok := <-agent.Errors():
+				case err, ok := <-ca.Errors():
 					if !ok {
 						return
 					}
@@ -149,7 +136,7 @@ func TestChannelAgent(t *testing.T) {
 			go func(i int) {
 				defer wg.Done()
 				msg := fmt.Sprintf("message-%d", i)
-				if err := agent.Send(msg); err != nil {
+				if err := ca.Send(msg); err != nil {
 					select {
 					case errors <- err:
 					case <-ctx.Done():
@@ -207,22 +194,22 @@ func TestChannelAgent(t *testing.T) {
 	})
 
 	t.Run("error handling", func(t *testing.T) {
-		mock := newMockLLM()
-		mock.errorOnMessage = "error message"
-
-		agent := NewChannelAgent(testConfig("error"), mock)
+		mock := setupMockLLM(t, "error message", 0)
+		agent := testAgent("error")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Send message that triggers error
-		require.NoError(t, agent.Send("error message"))
+		require.NoError(t, ca.Send("error message"))
 
 		// Should receive error
 		select {
-		case err := <-agent.Errors():
+		case err := <-ca.Errors():
 			assert.Contains(t, err.Error(), "mock error")
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for error")
@@ -230,15 +217,16 @@ func TestChannelAgent(t *testing.T) {
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
-		mock := newMockLLM()
-		mock.delay = 100 * time.Millisecond // Add delay to ensure message is in flight
+		mock := setupMockLLM(t, "", 100*time.Millisecond)
+		agent := testAgent("cancel")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
-		agent := NewChannelAgent(testConfig("cancel"), mock)
 		ctx, cancel := context.WithCancel(context.Background())
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Send message
-		require.NoError(t, agent.Send("test"))
+		require.NoError(t, ca.Send("test"))
 
 		// Cancel context before response
 		cancel()
@@ -247,28 +235,28 @@ func TestChannelAgent(t *testing.T) {
 		time.Sleep(200 * time.Millisecond) // Give time for cleanup
 
 		// Verify channels are closed by trying to send/receive
-		assert.Error(t, agent.Send("test"), "should not be able to send after close")
+		assert.Error(t, ca.Send("test"), "should not be able to send after close")
 
 		// Verify all channels are closed
-		assertChannelClosed(t, agent.output, "output channel")
-		assertChannelClosed(t, agent.errors, "errors channel")
-		assertChannelClosed(t, agent.done, "done channel")
+		assertChannelClosed(t, ca.output, "output channel")
+		assertChannelClosed(t, ca.errors, "errors channel")
+		assertChannelClosed(t, ca.done, "done channel")
 	})
 
 	t.Run("channel full handling", func(t *testing.T) {
-		mock := newMockLLM()
-		mock.delay = 50 * time.Millisecond // Add delay to help fill buffer
-
-		agent := NewChannelAgent(testConfig("full"), mock)
+		mock := setupMockLLM(t, "", 50*time.Millisecond)
+		agent := testAgent("full")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Try to fill input channel
 		for i := 0; i < 15; i++ { // More than buffer size (10)
-			err := agent.Send(fmt.Sprintf("message-%d", i))
+			err := ca.Send(fmt.Sprintf("message-%d", i))
 			if err != nil {
 				assert.Contains(t, err.Error(), "channel full")
 				return
@@ -277,47 +265,44 @@ func TestChannelAgent(t *testing.T) {
 	})
 
 	t.Run("cleanup idempotency", func(t *testing.T) {
-		mock := newMockLLM()
-		agent := NewChannelAgent(testConfig("cleanup"), mock)
+		mock := setupMockLLM(t, "", 0)
+		agent := testAgent("cleanup")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Multiple closes should not panic
 		cancel()
-		agent.Close()
-		agent.Close()
-		agent.Close()
+		ca.Close()
+		ca.Close()
+		ca.Close()
 	})
 
 	t.Run("message ordering", func(t *testing.T) {
-		mock := newMockLLM()
-		// Set up deterministic responses
-		mock.responses = map[string]string{
-			"1": "first",
-			"2": "second",
-			"3": "third",
-		}
-
-		agent := NewChannelAgent(testConfig("ordering"), mock)
+		mock := setupMockLLM(t, "", 0)
+		agent := testAgent("ordering")
+		agent.llm = mock
+		ca := NewChannelAgent(agent)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		require.NoError(t, agent.Start(ctx))
+		require.NoError(t, ca.Start(ctx))
 
 		// Send messages in order
-		require.NoError(t, agent.Send("1"))
-		require.NoError(t, agent.Send("2"))
-		require.NoError(t, agent.Send("3"))
+		require.NoError(t, ca.Send("1"))
+		require.NoError(t, ca.Send("2"))
+		require.NoError(t, ca.Send("3"))
 
 		// Collect responses
 		responses := make([]string, 0, 3)
 		for i := 0; i < 3; i++ {
 			select {
-			case resp := <-agent.Output():
+			case resp := <-ca.Output():
 				responses = append(responses, resp)
-			case err := <-agent.Errors():
+			case err := <-ca.Errors():
 				t.Fatalf("unexpected error: %v", err)
 			case <-time.After(time.Second):
 				t.Fatal("timeout waiting for response")
@@ -326,7 +311,11 @@ func TestChannelAgent(t *testing.T) {
 
 		// Note: Due to concurrent processing, we can't guarantee order
 		// but we can verify we got all expected responses
-		assert.ElementsMatch(t, []string{"first", "second", "third"}, responses)
+		assert.ElementsMatch(t, []string{
+			"mock response for: 1",
+			"mock response for: 2",
+			"mock response for: 3",
+		}, responses)
 	})
 }
 

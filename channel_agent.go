@@ -1,12 +1,10 @@
-package agent
+package hive
 
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/adimarco/hive/internal/llm"
 )
 
 // ChannelAgent extends Agent with channel-based message handling
@@ -22,9 +20,9 @@ type ChannelAgent struct {
 }
 
 // NewChannelAgent creates a new ChannelAgent with the given configuration
-func NewChannelAgent(config AgentConfig, llm llm.AugmentedLLM) *ChannelAgent {
+func NewChannelAgent(agent *Agent) *ChannelAgent {
 	return &ChannelAgent{
-		Agent:  NewAgent(config, llm),
+		Agent:  agent,
 		input:  make(chan string, 100), // Increased buffer for high concurrency
 		output: make(chan string, 100), // Increased buffer for high concurrency
 		done:   make(chan struct{}),    // Unbuffered for clean shutdown

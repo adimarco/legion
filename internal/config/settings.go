@@ -35,7 +35,7 @@ type LoggerSettings struct {
 	ProgressDisplay bool `yaml:"progress_display" env:"LOGGER_PROGRESS_DISPLAY" default:"true"`
 
 	// Path to log file if Type is "file"
-	Path string `yaml:"path" env:"LOGGER_PATH" default:"fastagent.jsonl"`
+	Path string `yaml:"path" env:"LOGGER_PATH" default:"hive.jsonl"`
 
 	// Number of events to accumulate before processing
 	BatchSize int `yaml:"batch_size" env:"LOGGER_BATCH_SIZE" default:"100"`
@@ -75,7 +75,7 @@ type MCPServerSettings struct {
 func LoadSettings(configPath string) (*Settings, error) {
 	// If no path specified, look in default locations
 	if configPath == "" {
-		configPath = "fastagent.config.yaml"
+		configPath = "hive.config.yaml"
 	}
 
 	// Create settings with defaults
@@ -84,7 +84,7 @@ func LoadSettings(configPath string) (*Settings, error) {
 			Type:            "file",
 			Level:           "warning",
 			ProgressDisplay: true,
-			Path:            "fastagent.jsonl",
+			Path:            "hive.jsonl",
 			BatchSize:       100,
 		},
 		MCP: MCPSettings{

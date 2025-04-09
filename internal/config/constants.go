@@ -2,7 +2,7 @@ package config
 
 // Environment variable prefixes
 const (
-	EnvPrefix = "FASTAGENT_"
+	EnvPrefix = "HIVE_"
 )
 
 // Valid logger types

@@ -1,4 +1,5 @@
-package agent
+// Package hive provides a framework for building and deploying intelligent agents.
+package hive
 
 import (
 	"bufio"
@@ -27,44 +28,83 @@ const (
 	AgentTypeParallel AgentType = "parallel"
 )
 
-// AgentConfig holds configuration for an agent instance
-type AgentConfig struct {
-	// Name uniquely identifies this agent
-	Name string
-	// Instruction provides the agent's base behavior
-	Instruction string
-	// Type determines how this agent operates
-	Type AgentType
-	// Model specifies which LLM model to use
-	Model string
-	// UseHistory determines if conversation history is maintained
-	UseHistory bool
-	// RequestParams provides additional LLM configuration
-	RequestParams *llm.RequestParams
-
-	// Additional configuration for specific agent types
-	ChildAgents   []string       // For orchestrator
-	RouterAgents  []string       // For router
-	ChainSequence []string       // For chain
-	FanOutAgents  []string       // For parallel
-	FanInAgent    string         // For parallel
-	Metadata      map[string]any // For custom data
-}
-
 // Agent represents a configured agent instance
 type Agent struct {
-	config AgentConfig
-	llm    llm.AugmentedLLM
-	output io.Writer // For configurable output
+	name        string
+	instruction string
+	agentType   AgentType
+	model       string
+	useHistory  bool
+	humanInput  bool
+	params      *llm.RequestParams
+	llm         llm.AugmentedLLM
+	output      io.Writer // For configurable output
 }
 
-// NewAgent creates a new Agent with the given configuration
-func NewAgent(config AgentConfig, llm llm.AugmentedLLM) *Agent {
+// New creates a new Agent with basic configuration
+func New(name, instruction string) *Agent {
 	return &Agent{
-		config: config,
-		llm:    llm,
-		output: os.Stdout, // Default to stdout
+		name:        name,
+		instruction: instruction,
+		agentType:   AgentTypeBasic,
+		output:      os.Stdout,
 	}
+}
+
+// WithModel sets the model for the agent
+func (a *Agent) WithModel(model string) *Agent {
+	a.model = model
+	return a
+}
+
+// WithHistory enables conversation history
+func (a *Agent) WithHistory() *Agent {
+	a.useHistory = true
+	return a
+}
+
+// WithHumanInput enables human input requests
+func (a *Agent) WithHumanInput() *Agent {
+	a.humanInput = true
+	return a
+}
+
+// WithParams sets additional request parameters
+func (a *Agent) WithParams(params *llm.RequestParams) *Agent {
+	a.params = params
+	return a
+}
+
+// WithTools adds MCP tools to the agent
+func (a *Agent) WithTools(tools ...string) *Agent {
+	if a.params == nil {
+		a.params = &llm.RequestParams{}
+	}
+	if a.params.Tools == nil {
+		a.params.Tools = make([]string, 0)
+	}
+	a.params.Tools = append(a.params.Tools, tools...)
+	return a
+}
+
+// WithConfig adds additional configuration to the agent
+func (a *Agent) WithConfig(cfg map[string]any) *Agent {
+	if a.params == nil {
+		a.params = &llm.RequestParams{}
+	}
+	if a.params.Config == nil {
+		a.params.Config = make(map[string]any)
+	}
+	for k, v := range cfg {
+		a.params.Config[k] = v
+	}
+	return a
+}
+
+// WithType sets the agent type
+func (a *Agent) WithType(agentType AgentType) *Agent {
+	a.agentType = agentType
+	return a
 }
 
 // SetOutput configures where the agent writes output
@@ -75,10 +115,10 @@ func (a *Agent) SetOutput(w io.Writer) {
 // Run starts an agent session and returns a RunningAgent
 func (a *Agent) Run(ctx context.Context) (*RunningAgent, error) {
 	// Validate configuration
-	if a.config.Name == "" {
+	if a.name == "" {
 		return nil, fmt.Errorf("agent name is required")
 	}
-	if a.config.Instruction == "" {
+	if a.instruction == "" {
 		return nil, fmt.Errorf("agent instruction is required")
 	}
 
@@ -109,11 +149,11 @@ func (ra *RunningAgent) Send(msg string) (string, error) {
 	}
 
 	params := &llm.RequestParams{
-		SystemPrompt: ra.agent.config.Instruction,
-		UseHistory:   ra.agent.config.UseHistory,
-	}
-	if ra.agent.config.RequestParams != nil {
-		params = ra.agent.config.RequestParams
+		SystemPrompt: ra.agent.instruction,
+		Model:        ra.agent.model,
+		UseHistory:   ra.agent.useHistory,
+		Tools:        ra.agent.params.Tools,
+		Config:       ra.agent.params.Config,
 	}
 
 	response, err := ra.agent.llm.Generate(ra.ctx, message, params)
@@ -129,7 +169,7 @@ func (ra *RunningAgent) Chat() error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Fprintln(ra.agent.output, "Starting chat session. Type 'exit' to end.")
-	fmt.Fprintln(ra.agent.output, "Instruction:", ra.agent.config.Instruction)
+	fmt.Fprintln(ra.agent.output, "Instruction:", ra.agent.instruction)
 
 	for {
 		select {

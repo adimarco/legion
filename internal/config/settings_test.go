@@ -12,7 +12,7 @@ import (
 func TestLoadSettings(t *testing.T) {
 	// Create a temporary config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "fastagent.config.yaml")
+	configPath := filepath.Join(tmpDir, "hive.config.yaml")
 
 	configData := `
 default_model: haiku
@@ -74,7 +74,7 @@ func TestLoadSettings_FileNotFound(t *testing.T) {
 	assert.Equal(t, "file", settings.Logger.Type)
 	assert.Equal(t, "warning", settings.Logger.Level)
 	assert.True(t, settings.Logger.ProgressDisplay)
-	assert.Equal(t, "fastagent.jsonl", settings.Logger.Path)
+	assert.Equal(t, "hive.jsonl", settings.Logger.Path)
 	assert.Equal(t, 100, settings.Logger.BatchSize)
 }
 
@@ -99,16 +99,16 @@ logger:
 func TestLoadSettings_EnvironmentOverrides(t *testing.T) {
 	// Set up environment variables
 	envVars := map[string]string{
-		"FASTAGENT_DEFAULT_MODEL":           "sonnet",
-		"FASTAGENT_LOGGER_TYPE":             "console",
-		"FASTAGENT_LOGGER_LEVEL":            "debug",
-		"FASTAGENT_LOGGER_PROGRESS_DISPLAY": "false",
-		"FASTAGENT_LOGGER_PATH":             "env.jsonl",
-		"FASTAGENT_LOGGER_BATCH_SIZE":       "200",
-		"FASTAGENT_MCP_SERVER_TEST_NAME":    "Env Test Server",
-		"FASTAGENT_MCP_SERVER_TEST_COMMAND": "test-cmd",
-		"FASTAGENT_MCP_SERVER_TEST_ARGS":    "arg1,arg2",
-		"FASTAGENT_MCP_SERVER_TEST_ENV":     "KEY1=value1,KEY2=value2",
+		"HIVE_DEFAULT_MODEL":           "sonnet",
+		"HIVE_LOGGER_TYPE":             "console",
+		"HIVE_LOGGER_LEVEL":            "debug",
+		"HIVE_LOGGER_PROGRESS_DISPLAY": "false",
+		"HIVE_LOGGER_PATH":             "env.jsonl",
+		"HIVE_LOGGER_BATCH_SIZE":       "200",
+		"HIVE_MCP_SERVER_TEST_NAME":    "Env Test Server",
+		"HIVE_MCP_SERVER_TEST_COMMAND": "test-cmd",
+		"HIVE_MCP_SERVER_TEST_ARGS":    "arg1,arg2",
+		"HIVE_MCP_SERVER_TEST_ENV":     "KEY1=value1,KEY2=value2",
 	}
 
 	// Set environment variables
@@ -141,7 +141,7 @@ func TestLoadSettings_EnvironmentOverrides(t *testing.T) {
 func TestLoadSettings_EnvironmentOverridesWithFile(t *testing.T) {
 	// Create a config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "fastagent.config.yaml")
+	configPath := filepath.Join(tmpDir, "hive.config.yaml")
 
 	configData := `
 default_model: haiku
@@ -157,9 +157,9 @@ logger:
 	require.NoError(t, err)
 
 	// Set environment variables that should override the file
-	t.Setenv("FASTAGENT_DEFAULT_MODEL", "sonnet")
-	t.Setenv("FASTAGENT_LOGGER_TYPE", "console")
-	t.Setenv("FASTAGENT_LOGGER_BATCH_SIZE", "200")
+	t.Setenv("HIVE_DEFAULT_MODEL", "sonnet")
+	t.Setenv("HIVE_LOGGER_TYPE", "console")
+	t.Setenv("HIVE_LOGGER_BATCH_SIZE", "200")
 
 	// Load settings
 	settings, err := LoadSettings(configPath)

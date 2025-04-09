@@ -1,4 +1,11 @@
-package fastagent
+package hive
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/adimarco/hive/internal/llm"
+)
 
 // Archetype defines a specialist role with its behavior
 type Archetype struct {
@@ -19,6 +26,57 @@ func RegisterArchetype(name string, archetype Archetype) {
 func GetArchetype(name string) (Archetype, bool) {
 	a, ok := archetypeRegistry[name]
 	return a, ok
+}
+
+// Team manages a collection of Agents
+type Team struct {
+	name   string
+	llm    llm.AugmentedLLM
+	agents map[string]*Agent
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// TeamWithLLM creates a new Team with the given LLM and agents
+func TeamWithLLM(name string, llm llm.AugmentedLLM, agents ...*Agent) *Team {
+	ctx, cancel := context.WithCancel(context.Background())
+	team := &Team{
+		name:   name,
+		llm:    llm,
+		agents: make(map[string]*Agent),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	for _, agent := range agents {
+		team.agents[agent.name] = agent
+	}
+
+	return team
+}
+
+// Send sends a message to a specific agent and returns its response
+func (t *Team) Send(agentName, message string) (string, error) {
+	agent, ok := t.agents[agentName]
+	if !ok {
+		return "", fmt.Errorf("agent %q not found", agentName)
+	}
+
+	params := &llm.RequestParams{
+		Model:      agent.model,
+		UseHistory: agent.useHistory,
+		Tools:      agent.params.Tools,
+		Config:     agent.params.Config,
+	}
+
+	return t.llm.GenerateString(t.ctx, message, params)
+}
+
+// Close cleans up team resources
+func (t *Team) Close() {
+	if t.cancel != nil {
+		t.cancel()
+	}
 }
 
 // TeamBuilder provides a fluent interface for building teams
@@ -60,20 +118,14 @@ func (b *TeamBuilder) WithSpecialist(name, instruction string) *TeamBuilder {
 	return b
 }
 
-// Build creates the FastAgent team
-func (b *TeamBuilder) Build() *FastAgent {
-	// Load configuration
-	cfg, err := LoadConfig()
-	if err != nil {
-		return nil
-	}
-
+// Build creates the Team
+func (b *TeamBuilder) Build(llm llm.AugmentedLLM) *Team {
 	agents := make([]*Agent, 0, len(b.specialists)+1)
 	if b.coordinator != nil {
 		agents = append(agents, b.coordinator)
 	}
 	agents = append(agents, b.specialists...)
-	return Team(b.name, cfg, agents...)
+	return TeamWithLLM(b.name, llm, agents...)
 }
 
 // ArchetypeBuilder provides a fluent interface for building archetypes

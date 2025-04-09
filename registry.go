@@ -1,4 +1,4 @@
-package fastagent
+package hive
 
 import (
 	"fmt"

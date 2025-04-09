@@ -1,31 +1,27 @@
-.PHONY: test examples clean
+.PHONY: clean mocks test test-verbose
+
+# Clean build artifacts and generated files
+clean:
+	rm -rf mocks/
+	find . -type f -name '*.test' -delete
+	find . -type f -name 'coverage.out' -delete
+
+# Generate mocks using mockery
+mocks:
+	go generate ./...
+
+# Run tests
+test:
+	go test -race ./...
+
+# Run tests with verbose output
+test-verbose:
+	go test -v -race ./...
+
+# Run tests with coverage
+test-coverage:
+	go test -race -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out
 
 # Default target
-all: test examples
-
-# Run all tests with coverage
-test:
-	@echo "Running tests..."
-	@go test -v -race -cover ./...
-
-# Run all examples
-examples: examples/concurrent_specialists examples/research_team examples/research_team_simple
-
-examples/concurrent_specialists:
-	@echo "\nRunning concurrent specialists example..."
-	@cd examples/concurrent_specialists && go run main.go
-
-examples/research_team:
-	@echo "\nRunning research team example..."
-	@cd examples/research_team && go run main.go
-
-examples/research_team_simple:
-	@echo "\nRunning research team simple example..."
-	@cd examples/research_team_simple && go run main.go
-
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	@go clean
-	@find . -type f -name '*.test' -delete
-	@find . -type f -name '*.out' -delete 
+all: clean mocks test 

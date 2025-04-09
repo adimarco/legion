@@ -26,4 +26,8 @@ go.work
 
 # OS specific files
 .DS_Store
-.env 
+.env
+
+# Generated mocks
+mocks/
+**/mocks/ 

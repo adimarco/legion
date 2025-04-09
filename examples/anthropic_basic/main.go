@@ -4,15 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/joho/godotenv"
 
+	"github.com/adimarco/hive"
 	"github.com/adimarco/hive/internal/config"
-	"github.com/adimarco/hive/internal/fastagent"
 	"github.com/adimarco/hive/internal/llm"
 	"github.com/adimarco/hive/internal/tools"
 )
@@ -50,18 +49,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load config for LLM
-	cfg, err := fastagent.LoadConfig()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Create and initialize the LLM
 	teamLLM := llm.NewAnthropicLLM("example-llm")
 	if err := teamLLM.Initialize(context.Background(), &config.Settings{
 		DefaultModel: "claude-3-haiku", // Fast, cheap model
 		Logger: config.LoggerSettings{
-			Level: cfg.LogLevel,
+			Level: "info",
 		},
 	}); err != nil {
 		fmt.Printf("Failed to initialize LLM: %v\n", err)
@@ -69,13 +62,13 @@ func main() {
 	}
 
 	// Create an agent that can use our tool
-	agent := fastagent.New("time-agent",
+	agent := hive.New("time-agent",
 		"You are an assistant that helps with time-related tasks. "+
 			"Use the getCurrentTime tool to get the current time and suggest appropriate activities.",
 	).WithTools("getCurrentTime@1.0.0")
 
 	// Create a team with our agent and LLM
-	team := fastagent.TeamWithLLM("Time Tutorial", teamLLM, agent)
+	team := hive.TeamWithLLM("Time Tutorial", teamLLM, agent)
 	defer team.Close()
 
 	// Ask the agent to use the tool
