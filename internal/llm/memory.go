@@ -79,54 +79,57 @@ func (m *SimpleMemory) Clear(clearPrompts bool) error {
 
 // deepCopyMessage creates a deep copy of a Message
 func deepCopyMessage(msg Message) Message {
-	copy := Message{
-		Type:    msg.Type,
-		Content: msg.Content,
-		Name:    msg.Name,
+	return Message{
+		Type:      msg.Type,
+		Content:   msg.Content,
+		Name:      msg.Name,
+		Metadata:  deepCopyMap(msg.Metadata),
+		ToolCalls: deepCopyToolCalls(msg.ToolCalls),
+		Parts:     deepCopyMessageParts(msg.Parts),
 	}
+}
 
-	// Deep copy metadata
-	if msg.Metadata != nil {
-		copy.Metadata = make(map[string]any, len(msg.Metadata))
-		for k, v := range msg.Metadata {
-			copy.Metadata[k] = v
+// deepCopyMap creates a deep copy of a map[string]any
+func deepCopyMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	copy := make(map[string]any, len(m))
+	for k, v := range m {
+		copy[k] = v // Note: This assumes values don't need deep copying
+	}
+	return copy
+}
+
+// deepCopyToolCalls creates a deep copy of a slice of ToolCalls
+func deepCopyToolCalls(calls []ToolCall) []ToolCall {
+	if len(calls) == 0 {
+		return nil
+	}
+	copy := make([]ToolCall, len(calls))
+	for i, call := range calls {
+		copy[i] = ToolCall{
+			ID:       call.ID,
+			Name:     call.Name,
+			Response: call.Response,
+			Args:     deepCopyMap(call.Args),
 		}
 	}
+	return copy
+}
 
-	// Deep copy tool calls
-	if len(msg.ToolCalls) > 0 {
-		copy.ToolCalls = make([]ToolCall, len(msg.ToolCalls))
-		for i, call := range msg.ToolCalls {
-			copy.ToolCalls[i] = ToolCall{
-				ID:       call.ID,
-				Name:     call.Name,
-				Response: call.Response,
-			}
-			if call.Args != nil {
-				copy.ToolCalls[i].Args = make(map[string]any, len(call.Args))
-				for k, v := range call.Args {
-					copy.ToolCalls[i].Args[k] = v
-				}
-			}
+// deepCopyMessageParts creates a deep copy of a slice of MessageParts
+func deepCopyMessageParts(parts []MessagePart) []MessagePart {
+	if len(parts) == 0 {
+		return nil
+	}
+	copy := make([]MessagePart, len(parts))
+	for i, part := range parts {
+		copy[i] = MessagePart{
+			Type:    part.Type,
+			Content: part.Content,
+			Data:    deepCopyMap(part.Data),
 		}
 	}
-
-	// Deep copy message parts
-	if len(msg.Parts) > 0 {
-		copy.Parts = make([]MessagePart, len(msg.Parts))
-		for i, part := range msg.Parts {
-			copy.Parts[i] = MessagePart{
-				Type:    part.Type,
-				Content: part.Content,
-			}
-			if part.Data != nil {
-				copy.Parts[i].Data = make(map[string]any, len(part.Data))
-				for k, v := range part.Data {
-					copy.Parts[i].Data[k] = v
-				}
-			}
-		}
-	}
-
 	return copy
 }

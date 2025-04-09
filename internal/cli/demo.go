@@ -83,9 +83,9 @@ func demoToolCalls(ctx context.Context) error {
 	assistant := llm.NewPassthroughLLM("ToolUser")
 	messages := []string{
 		"Let me check the weather.",
-		llm.CALL_TOOL_INDICATOR + ` weather {"location": "Seattle", "units": "F"}`,
+		llm.ToolCallPrefix + ` weather {"location": "Seattle", "units": "F"}`,
 		"Now let me check the time.",
-		llm.CALL_TOOL_INDICATOR + ` time {"timezone": "PST"}`,
+		llm.ToolCallPrefix + ` time {"timezone": "PST"}`,
 	}
 
 	for _, msg := range messages {
@@ -111,7 +111,7 @@ func demoFixedResponses(ctx context.Context) error {
 	assistant := llm.NewPassthroughLLM("FixedBot")
 	messages := []string{
 		"What's your favorite color?",
-		llm.FIXED_RESPONSE_INDICATOR + " Blue! Always blue!",
+		llm.FixedResponsePrefix + " Blue! Always blue!",
 		"Are you sure?",
 		"What about red?",
 		"Maybe green?",

@@ -28,15 +28,15 @@ import (
 )
 
 const (
-	// CALL_TOOL_INDICATOR prefixes a message that should trigger a tool call.
+	// ToolCallPrefix prefixes a message that should trigger a tool call.
 	// Format: ***CALL_TOOL <tool_name> <json_args>
 	// Example: ***CALL_TOOL search {"query": "golang"}
-	CALL_TOOL_INDICATOR = "***CALL_TOOL"
+	ToolCallPrefix = "***CALL_TOOL"
 
-	// FIXED_RESPONSE_INDICATOR sets a fixed response for all subsequent calls.
+	// FixedResponsePrefix sets a fixed response for all subsequent calls.
 	// Format: ***FIXED_RESPONSE <response_text>
 	// Example: ***FIXED_RESPONSE I will always say this
-	FIXED_RESPONSE_INDICATOR = "***FIXED_RESPONSE"
+	FixedResponsePrefix = "***FIXED_RESPONSE"
 )
 
 // PassthroughLLM is a simple implementation that just echoes messages back.
@@ -106,8 +106,8 @@ func (l *PassthroughLLM) Generate(ctx context.Context, msg Message, params *Requ
 	}
 
 	// Check for special commands
-	if strings.HasPrefix(msg.Content, FIXED_RESPONSE_INDICATOR) {
-		parts := strings.SplitN(msg.Content, FIXED_RESPONSE_INDICATOR, 2)
+	if strings.HasPrefix(msg.Content, FixedResponsePrefix) {
+		parts := strings.SplitN(msg.Content, FixedResponsePrefix, 2)
 		if len(parts) > 1 {
 			l.fixedResponse = strings.TrimSpace(parts[1])
 			l.logger.Debug(ctx, "Set fixed response", logging.WithData(map[string]interface{}{
@@ -116,7 +116,7 @@ func (l *PassthroughLLM) Generate(ctx context.Context, msg Message, params *Requ
 		}
 	}
 
-	if strings.HasPrefix(msg.Content, CALL_TOOL_INDICATOR) {
+	if strings.HasPrefix(msg.Content, ToolCallPrefix) {
 		toolName, args, err := l.parseToolCall(msg.Content)
 		if err != nil {
 			l.logger.Error(ctx, "Failed to parse tool call", logging.WithData(map[string]interface{}{
@@ -205,7 +205,7 @@ func (l *PassthroughLLM) GenerateString(ctx context.Context, content string, par
 // The JSON arguments are optional. If present, they must be valid JSON.
 func (l *PassthroughLLM) parseToolCall(content string) (name string, args map[string]any, err error) {
 	// Remove the indicator
-	content = strings.TrimPrefix(content, CALL_TOOL_INDICATOR)
+	content = strings.TrimPrefix(content, ToolCallPrefix)
 	content = strings.TrimSpace(content)
 
 	// Split into name and args

@@ -58,8 +58,6 @@ type PlaybackLLM struct {
 	overage         int               // Tracks attempts to read past the end
 	name            string            // Instance identifier
 	memory          Memory            // Conversation history
-	cfg             *config.Settings  // Configuration
-	defaults        *RequestParams    // Default parameters
 	logger          logging.Logger    // Structured logging
 	responses       map[string]string // Trigger-based responses
 	playbackStarted bool              // Whether playback has been started

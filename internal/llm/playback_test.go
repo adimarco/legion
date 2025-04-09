@@ -225,7 +225,7 @@ func TestPlaybackLLM(t *testing.T) {
 		// Record a response that includes a tool call
 		recordMsg := Message{
 			Type:    MessageTypeUser,
-			Content: "!record search " + CALL_TOOL_INDICATOR + "search {\"query\": \"test\"}",
+			Content: "!record search " + ToolCallPrefix + "search {\"query\": \"test\"}",
 		}
 		_, err := llm.Generate(ctx, recordMsg, nil)
 		require.NoError(t, err)
@@ -235,6 +235,22 @@ func TestPlaybackLLM(t *testing.T) {
 		response, err := llm.Generate(ctx, msg, nil)
 		require.NoError(t, err)
 		assert.Contains(t, response.Content, "Tool call: search")
+		assert.Contains(t, response.Content, `"query": "test"`)
+	})
+
+	t.Run("tool calls", func(t *testing.T) {
+		msg := Message{
+			Type:    MessageTypeUser,
+			Content: ToolCallPrefix + ` search {"query": "test"}`,
+		}
+		llm := NewPlaybackLLM("test")
+		ctx := context.Background()
+		require.NoError(t, llm.Initialize(ctx, nil))
+
+		response, err := llm.Generate(ctx, msg, nil)
+		require.NoError(t, err)
+		assert.Contains(t, response.Content, ToolCallPrefix)
+		assert.Contains(t, response.Content, "search")
 		assert.Contains(t, response.Content, `"query": "test"`)
 	})
 }

@@ -10,11 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Environment variable prefixes
-const (
-	EnvPrefix = "FASTAGENT_"
-)
-
 // Settings represents the root configuration structure
 type Settings struct {
 	// DefaultModel takes format: <provider>.<model_string>.<reasoning_effort?>
