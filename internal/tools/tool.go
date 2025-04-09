@@ -333,3 +333,71 @@ func NewErrorResult(err error) ToolResult {
 		IsError: true,
 	}
 }
+
+// ToolBuilder provides a fluent interface for building tools
+type ToolBuilder struct {
+	tool Tool
+}
+
+// New creates a new ToolBuilder
+func New(name string) *ToolBuilder {
+	return &ToolBuilder{
+		tool: Tool{
+			Name:    name,
+			Version: "1.0.0", // Default version
+		},
+	}
+}
+
+// WithVersion sets the tool version
+func (b *ToolBuilder) WithVersion(version string) *ToolBuilder {
+	b.tool.Version = version
+	return b
+}
+
+// WithDescription sets the tool description
+func (b *ToolBuilder) WithDescription(desc string) *ToolBuilder {
+	b.tool.Description = desc
+	return b
+}
+
+// WithCategory sets the tool category
+func (b *ToolBuilder) WithCategory(category string) *ToolBuilder {
+	b.tool.Category = category
+	return b
+}
+
+// WithTags adds tags to the tool
+func (b *ToolBuilder) WithTags(tags ...string) *ToolBuilder {
+	b.tool.Tags = append(b.tool.Tags, tags...)
+	return b
+}
+
+// WithSchema sets the JSON schema for input validation
+func (b *ToolBuilder) WithSchema(schema json.RawMessage) *ToolBuilder {
+	b.tool.Schema = schema
+	return b
+}
+
+// WithHandler sets the tool handler function
+func (b *ToolBuilder) WithHandler(handler func(context.Context, map[string]any) (string, error)) *ToolBuilder {
+	b.tool.Handler = func(ctx context.Context, args map[string]any) (ToolResult, error) {
+		content, err := handler(ctx, args)
+		if err != nil {
+			return NewErrorResult(err), nil
+		}
+		return NewToolResult(content), nil
+	}
+	return b
+}
+
+// Build creates the final Tool
+func (b *ToolBuilder) Build() Tool {
+	return b.tool
+}
+
+// Register registers the tool with the default registry
+func Register(tool Tool) error {
+	registry := NewSimpleToolRegistry()
+	return registry.Register(tool)
+}

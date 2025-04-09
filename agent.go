@@ -101,6 +101,12 @@ func (a *Agent) WithConfig(cfg map[string]any) *Agent {
 	return a
 }
 
+// WithLLM sets the LLM for the agent
+func (a *Agent) WithLLM(llm llm.AugmentedLLM) *Agent {
+	a.llm = llm
+	return a
+}
+
 // WithType sets the agent type
 func (a *Agent) WithType(agentType AgentType) *Agent {
 	a.agentType = agentType

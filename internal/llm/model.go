@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/tools"
 )
 
 // MessageType represents the role of a message in a conversation.
@@ -148,6 +149,9 @@ type AugmentedLLM interface {
 
 	// Cleanup performs any necessary cleanup
 	Cleanup() error
+
+	// Tools returns the tool registry for this LLM
+	Tools() *tools.SimpleToolRegistry
 }
 
 // Memory manages conversation history and prompt storage

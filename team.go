@@ -156,3 +156,20 @@ func (b *ArchetypeBuilder) WithHistory() *ArchetypeBuilder {
 func (b *ArchetypeBuilder) Register() {
 	RegisterArchetype(b.archetype.Name, b.archetype)
 }
+
+// Chat starts an interactive chat session with the specified agent
+func (t *Team) Chat(agentName string) error {
+	agent, ok := t.agents[agentName]
+	if !ok {
+		return fmt.Errorf("agent %q not found", agentName)
+	}
+
+	// Create running agent
+	ra, err := agent.Run(t.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start agent: %w", err)
+	}
+
+	// Start chat session
+	return ra.Chat()
+}

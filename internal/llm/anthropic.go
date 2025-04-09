@@ -11,6 +11,7 @@ import (
 
 	"github.com/adimarco/hive/internal/config"
 	"github.com/adimarco/hive/internal/logging"
+	"github.com/adimarco/hive/internal/tools"
 )
 
 // AnthropicLLM implements the AugmentedLLM interface using Anthropic's Claude API
@@ -20,6 +21,7 @@ type AnthropicLLM struct {
 	memory   Memory
 	logger   logging.Logger
 	defaults *RequestParams
+	tools    *tools.SimpleToolRegistry
 }
 
 // NewAnthropicLLM creates a new AnthropicLLM instance
@@ -28,8 +30,9 @@ func NewAnthropicLLM(name string) *AnthropicLLM {
 		name:   name,
 		memory: NewSimpleMemory(),
 		logger: logging.GetLogger("llm.anthropic"),
+		tools:  tools.NewSimpleToolRegistry(),
 		defaults: &RequestParams{
-			Model:         "claude-3-7-sonnet-latest",
+			Model:         "claude-3-haiku-20240307",
 			UseHistory:    true,
 			ParallelTools: true,
 			MaxIterations: 10,
@@ -97,7 +100,7 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 
 	// Create message request
 	req := anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaude3_7SonnetLatest,
+		Model:     "claude-3-haiku-20240307",
 		Messages:  messages,
 		MaxTokens: 1024,
 	}
@@ -113,19 +116,147 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 		req.Temperature = anthropic.Float(float64(reqParams.Temperature))
 	}
 
+	// Add tools if specified
+	if len(reqParams.Tools) > 0 {
+		var toolParams []anthropic.ToolParam
+		for _, toolName := range reqParams.Tools {
+			tool, err := l.tools.Get(toolName)
+			if err != nil {
+				l.logger.Error(ctx, "Tool not found", logging.WithData(map[string]interface{}{
+					"tool":  toolName,
+					"error": err.Error(),
+				}))
+				continue
+			}
+
+			// Convert tool schema to Anthropic's format
+			var schemaMap map[string]interface{}
+			if err := json.Unmarshal(tool.Schema, &schemaMap); err != nil {
+				l.logger.Error(ctx, "Failed to parse tool schema", logging.WithData(map[string]interface{}{
+					"tool":  toolName,
+					"error": err.Error(),
+				}))
+				continue
+			}
+
+			// Create tool parameter
+			toolParam := anthropic.ToolParam{
+				Name:        tool.Name,
+				Description: anthropic.String(tool.Description),
+				InputSchema: anthropic.ToolInputSchemaParam{
+					Type:       "object",
+					Properties: schemaMap["properties"].(map[string]interface{}),
+				},
+			}
+
+			toolParams = append(toolParams, toolParam)
+
+			l.logger.Info(ctx, "Added tool", logging.WithData(map[string]interface{}{
+				"tool":   toolName,
+				"schema": tool.Schema,
+			}))
+		}
+
+		// Convert to union type and add to request
+		tools := make([]anthropic.ToolUnionParam, len(toolParams))
+		for i, param := range toolParams {
+			tools[i] = anthropic.ToolUnionParam{OfTool: &param}
+		}
+		req.Tools = tools
+
+		l.logger.Info(ctx, "Request with tools", logging.WithData(map[string]interface{}{
+			"tools": tools,
+		}))
+	}
+
 	// Make API call
 	resp, err := l.client.Messages.New(ctx, req)
 	if err != nil {
 		l.logger.Error(ctx, "Anthropic API error", logging.WithData(map[string]interface{}{
 			"error": err.Error(),
 		}))
-		return Message{}, fmt.Errorf("Anthropic API error: %w", err)
+		return Message{}, fmt.Errorf("anthropic API error: %w", err)
 	}
 
-	// Convert response
+	l.logger.Info(ctx, "API response", logging.WithData(map[string]interface{}{
+		"content": resp.Content,
+	}))
+
+	// Process the response and handle tool calls
+	var finalResponse string
+	messages = append(messages, resp.ToParam())
+
+	for {
+		var toolResults []anthropic.ContentBlockParamUnion
+
+		// Process each block in the response
+		for _, block := range resp.Content {
+			switch variant := block.AsAny().(type) {
+			case anthropic.TextBlock:
+				finalResponse = variant.Text
+			case anthropic.ToolUseBlock:
+				l.logger.Info(ctx, "Tool use request", logging.WithData(map[string]interface{}{
+					"tool":  variant.Name,
+					"input": variant.JSON.Input.Raw(),
+				}))
+
+				// Parse the input
+				var args map[string]any
+				if err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &args); err != nil {
+					l.logger.Error(ctx, "Failed to parse tool input", logging.WithData(map[string]interface{}{
+						"tool":  variant.Name,
+						"error": err.Error(),
+					}))
+					continue
+				}
+
+				// Call the tool
+				result, err := l.tools.Call(ctx, variant.Name, args)
+				if err != nil {
+					l.logger.Error(ctx, "Tool call failed", logging.WithData(map[string]interface{}{
+						"tool":  variant.Name,
+						"error": err.Error(),
+					}))
+					continue
+				}
+
+				l.logger.Info(ctx, "Tool result", logging.WithData(map[string]interface{}{
+					"tool":   variant.Name,
+					"result": result,
+				}))
+
+				// Add tool result
+				toolResults = append(toolResults, anthropic.NewToolResultBlock(variant.ID, result.Content, result.IsError))
+			}
+		}
+
+		// If no tool calls, break the loop
+		if len(toolResults) == 0 {
+			break
+		}
+
+		// Add tool results and make another API call
+		messages = append(messages, anthropic.NewUserMessage(toolResults...))
+		req.Messages = messages
+
+		resp, err = l.client.Messages.New(ctx, req)
+		if err != nil {
+			l.logger.Error(ctx, "Anthropic API error after tool calls", logging.WithData(map[string]interface{}{
+				"error": err.Error(),
+			}))
+			return Message{}, fmt.Errorf("anthropic API error after tool calls: %w", err)
+		}
+
+		l.logger.Info(ctx, "API response after tool calls", logging.WithData(map[string]interface{}{
+			"content": resp.Content,
+		}))
+
+		messages = append(messages, resp.ToParam())
+	}
+
 	response := Message{
 		Type:    MessageTypeAssistant,
-		Content: resp.Content[0].Text,
+		Content: finalResponse,
 		Name:    l.name,
 	}
 
@@ -185,6 +316,11 @@ func (l *AnthropicLLM) Provider() string {
 // Cleanup performs any necessary cleanup
 func (l *AnthropicLLM) Cleanup() error {
 	return l.memory.Clear(true)
+}
+
+// Tools returns the tool registry for this LLM
+func (l *AnthropicLLM) Tools() *tools.SimpleToolRegistry {
+	return l.tools
 }
 
 // Helper functions
