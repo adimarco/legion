@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"os"
 
 	"gofast/internal/config"
 	"gofast/internal/fastagent"
@@ -31,27 +31,21 @@ func main() {
 		},
 	)
 
-	// Choose LLM based on environment
-	var teamLLM llm.AugmentedLLM
-	switch os.Getenv("FASTAGENT_LLM") {
-	case "passthrough":
-		teamLLM = llm.NewPassthroughLLM("test-sizer")
-		teamLLM.Initialize(nil, nil)
-	default:
-		// Load config for real LLM
-		cfg, err := fastagent.LoadConfig()
-		if err != nil {
-			log.Fatal(err)
-		}
-		teamLLM = llm.NewAnthropicLLM("sizer")
-		if err := teamLLM.Initialize(nil, &config.Settings{
-			DefaultModel: cfg.DefaultModel,
-			Logger: config.LoggerSettings{
-				Level: cfg.LogLevel,
-			},
-		}); err != nil {
-			log.Fatal(err)
-		}
+	// Load config for LLM
+	cfg, err := fastagent.LoadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create and initialize the LLM
+	teamLLM := llm.NewAnthropicLLM("sizer")
+	if err := teamLLM.Initialize(context.TODO(), &config.Settings{
+		DefaultModel: cfg.DefaultModel,
+		Logger: config.LoggerSettings{
+			Level: cfg.LogLevel,
+		},
+	}); err != nil {
+		log.Fatal(err)
 	}
 
 	// Create team with chosen LLM
