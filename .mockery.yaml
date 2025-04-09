@@ -1,13 +1,11 @@
 with-expecter: true
 filename: "{{.InterfaceName}}.go"
-dir: "internal/llm/mocks"
+dir: "llm/mocks"
 mockname: "{{.InterfaceName}}"
 outpkg: "mocks"
 inpackage: false
 testonly: true
 packages:
-  github.com/adimarco/hive/internal/llm:
+  github.com/adimarco/hive/llm:
     interfaces:
-      AugmentedLLM:
-        config:
-          with-expecter: true 
+      AugmentedLLM: 

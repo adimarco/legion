@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/adimarco/hive/internal/llm"
-	"github.com/adimarco/hive/internal/llm/mocks"
+	"github.com/adimarco/hive/llm"
+	"github.com/adimarco/hive/llm/mocks"
 )
 
 // setupMockLLM creates and configures a mock LLM for testing

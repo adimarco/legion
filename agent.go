@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/llm"
 )
 
 // AgentType represents different types of agents

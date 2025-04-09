@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/adimarco/hive/internal/tools"
+	"github.com/adimarco/hive/tools"
 )
 
 // Tool creates a new tool with sensible defaults

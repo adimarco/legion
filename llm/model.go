@@ -29,8 +29,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/adimarco/hive/internal/config"
-	"github.com/adimarco/hive/internal/tools"
+	"github.com/adimarco/hive/config"
+	"github.com/adimarco/hive/tools"
 )
 
 // MessageType represents the role of a message in a conversation.

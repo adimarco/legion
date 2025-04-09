@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adimarco/hive/internal/llm"
-	"github.com/adimarco/hive/internal/tools"
+	"github.com/adimarco/hive/llm"
+	"github.com/adimarco/hive/tools"
 )
 
 // App provides a high-level interface for creating and managing agents and tools

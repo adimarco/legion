@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adimarco/hive/internal/config"
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/config"
+	"github.com/adimarco/hive/llm"
 )
 
 // NewAnthropicLLM creates and initializes a new Anthropic LLM with sensible defaults.
