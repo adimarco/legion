@@ -9,83 +9,49 @@ The memory system is designed around these key principles:
 */
 package llm
 
-import (
-	"sync"
-)
-
-// SimpleMemory provides a basic thread-safe in-memory implementation of Memory.
-// This implementation is suitable for:
-// - Development and testing scenarios
-// - Short-lived conversations
-// - Single-instance deployments
-//
-// For production deployments with specific requirements (persistence,
-// distributed storage, etc.), you should implement a custom Memory
-// implementation.
+// SimpleMemory is a basic in-memory implementation of the Memory interface
 type SimpleMemory struct {
-	mu             sync.RWMutex
-	history        []Message // Regular conversation history
-	promptMessages []Message // System prompts and other context
+	messages []Message
+	prompts  []Message
 }
 
-// NewSimpleMemory creates a new SimpleMemory instance.
-// The memory starts empty and can be populated through the Add method.
-// Both history slices are initialized with zero capacity since we
-// can't predict the conversation length.
+// NewSimpleMemory creates a new SimpleMemory instance
 func NewSimpleMemory() *SimpleMemory {
 	return &SimpleMemory{
-		history:        make([]Message, 0),
-		promptMessages: make([]Message, 0),
+		messages: make([]Message, 0),
+		prompts:  make([]Message, 0),
 	}
 }
 
-// Add adds a message to history.
-// Messages are categorized into two types:
-// 1. Prompt messages (isPrompt=true): System prompts, permanent context
-// 2. History messages (isPrompt=false): Regular conversation messages
-//
-// This separation allows for:
-// - Clearing conversation history while preserving prompts
-// - Selectively including/excluding history in requests
-// - Different retention policies for different message types
+// Add adds a message to history
 func (m *SimpleMemory) Add(msg Message, isPrompt bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if isPrompt {
-		m.promptMessages = append(m.promptMessages, msg)
+		m.prompts = append(m.prompts, msg)
 	} else {
-		m.history = append(m.history, msg)
+		m.messages = append(m.messages, msg)
 	}
 	return nil
 }
 
-// Get retrieves messages from memory.
-// The includeHistory parameter controls whether conversation history
-// is included in the result:
-// - true: Returns prompt messages + history messages
-// - false: Returns only prompt messages
-//
-// The returned slice is a deep copy of the stored messages to prevent
-// external modifications to the internal state.
+// Get retrieves messages from memory
 func (m *SimpleMemory) Get(includeHistory bool) ([]Message, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// Always include prompt messages
-	result := make([]Message, len(m.promptMessages))
-	for i, msg := range m.promptMessages {
-		result[i] = deepCopyMessage(msg)
-	}
+	result := make([]Message, len(m.prompts))
+	copy(result, m.prompts)
 
 	if includeHistory {
-		// Append copies of history messages
-		for _, msg := range m.history {
-			result = append(result, deepCopyMessage(msg))
-		}
+		result = append(result, m.messages...)
 	}
 
 	return result, nil
+}
+
+// Clear clears the specified message types
+func (m *SimpleMemory) Clear(clearPrompts bool) error {
+	m.messages = make([]Message, 0)
+	if clearPrompts {
+		m.prompts = make([]Message, 0)
+	}
+	return nil
 }
 
 // deepCopyMessage creates a deep copy of a Message
@@ -140,24 +106,4 @@ func deepCopyMessage(msg Message) Message {
 	}
 
 	return copy
-}
-
-// Clear clears the specified message types.
-// The clearPrompts parameter controls what gets cleared:
-// - true: Clears both history and prompt messages
-// - false: Clears only history messages
-//
-// This flexibility allows for:
-// - Starting new conversations while keeping context
-// - Complete reset of all state
-// - Clearing history without affecting system prompts
-func (m *SimpleMemory) Clear(clearPrompts bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.history = make([]Message, 0)
-	if clearPrompts {
-		m.promptMessages = make([]Message, 0)
-	}
-	return nil
 }
