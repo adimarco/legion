@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"gofast/internal/config"
+	"github.com/adimarco/hive/internal/config"
 )
 
 // Context represents the global application context that is shared across components.

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"gofast/internal/config"
-	"gofast/internal/fastagent"
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/fastagent"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 func main() {

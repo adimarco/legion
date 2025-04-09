@@ -1,149 +1,73 @@
-# FastAgent (Go Implementation)
+# Hive
 
-FastAgent is a Go-based framework for building effective agents using the Model Context Protocol (MCP). It provides a robust foundation for creating AI agents that can use tools, manage context, and execute complex workflows.
+Hive is an intelligent agent framework that enables the creation, composition, and deployment of AI agents. Think of it as "npm for AI agents" meets "Slack App Directory" - a decentralized registry and platform where developers can build, share, and deploy intelligent agents.
 
-## Core Features
+## Features
 
-- **Provider-Agnostic LLM Interface**
-  - Support for multiple LLM providers (Anthropic, OpenAI)
-  - Clean abstraction for message handling
-  - Unified tool calling interface
-  - Structured output support
+- 🐝 **Agent Registry** - Publish and version agent configurations
+- 🔄 **Team Composition** - Compose agents into specialized teams
+- 🌐 **Multi-Channel** - Deploy agents across Slack, Discord, Terminal, and more
+- 🛠️ **Tool Integration** - Rich ecosystem of tools and capabilities
+- 🔒 **Enterprise Ready** - Built for production with security and scaling in mind
 
-- **Memory & Context Management**
-  - Thread-safe context handling
-  - Flexible memory management
-  - Separate prompt/conversation storage
-  - History serialization
+## Quick Start
 
-- **Development Tools**
-  - Passthrough LLM for testing
-  - Playback LLM for simulations
-  - Comprehensive testing utilities
-  - Debug-friendly logging
-
-- **CLI Framework**
-  - Project setup and bootstrapping
-  - Configuration management
-  - Example application generation
-  - Development utilities
-
-## Current Status
-
-This is an active implementation with the following components:
-
-### Implemented Features
-- **Core Framework**
-  - CLI structure using Cobra
-  - YAML configuration with validation
-  - Environment variable support
-  - Thread-safe context management
-  - Structured logging with Zap
-
-### In Development
-- Message handling system
-- Memory management
-- Provider integration
-- Agent runtime
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.21 or later
-- Git
-
-### Installation
-
+1. Install Hive:
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd gofast
-
-# Install dependencies
-go mod tidy
+go install github.com/adimarco/hive/cmd/hive@latest
 ```
 
-### Basic Usage
-
+2. Set up your Anthropic API key:
 ```bash
-# Build the CLI
-go build -o gofast cmd/gofast/main.go
-
-# View available commands
-./gofast --help
-
-# Set up a new project
-./gofast setup myproject
-
-# View configuration
-./gofast config show
+export ANTHROPIC_API_KEY=your-api-key-here
 ```
 
-### Configuration
-
-FastAgent uses a YAML-based configuration system with two main files:
-
-- `fastagent.config.yaml`: Main configuration file
-- `fastagent.secrets.yaml`: Secrets and API keys (never commit this file)
-
-Configuration can be overridden using environment variables with the `FASTAGENT_` prefix.
-
-Example configuration:
-```yaml
-default_model: haiku
-
-logger:
-  type: console
-  level: info
-  progress_display: true
-
-mcp:
-  servers:
-    fetch:
-      transport: stdio
-      command: uvx
-      args: ["mcp-server-fetch"]
+3. Create a new project:
+```bash
+hive setup myproject
+cd myproject
 ```
 
-## Development Roadmap
+4. Run examples:
+```bash
+hive bootstrap workflow
+```
 
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the detailed development roadmap.
+## Documentation
 
-Current focus:
-1. Message handling system
-2. Memory management
-3. Provider integration
-4. Agent runtime
+- [Getting Started](docs/getting-started.md)
+- [Agent Development](docs/agent-development.md)
+- [Tool Integration](docs/tool-integration.md)
+- [Channel Support](docs/channels.md)
 
-## Architecture
+## Development
 
-FastAgent follows these key principles:
+1. Clone the repository:
+```bash
+git clone https://github.com/adimarco/hive.git
+cd hive
+```
 
-1. **Type Safety**
-   - Provider-specific type handling
-   - Interface-based abstractions
-   - Generic message types
+2. Build the CLI:
+```bash
+go build -o hive cmd/hive/main.go
+```
 
-2. **Clean Abstractions**
-   - Provider-agnostic core
-   - Pluggable components
-   - Clear boundaries
+3. Run tests:
+```bash
+go test ./...
+```
 
-3. **Testing First**
-   - Comprehensive test coverage
-   - Mock providers
-   - Development tools
+## Examples
 
-4. **Production Ready**
-   - Thread safety
-   - Error handling
-   - Resource management
+- `examples/simple_agent` - Basic agent creation and interaction
+- `examples/anthropic_basic` - Direct LLM integration example
+- More examples coming soon!
 
 ## Contributing
 
-This project is in active development. See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the current status and roadmap.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-[License details to be determined] 
+MIT License - see [LICENSE](LICENSE) for details. 

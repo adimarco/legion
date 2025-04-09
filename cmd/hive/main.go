@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gofast/internal/cli"
+	"github.com/adimarco/hive/internal/cli"
 )
 
 func main() {

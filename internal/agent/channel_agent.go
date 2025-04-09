@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 // ChannelAgent extends Agent with channel-based message handling

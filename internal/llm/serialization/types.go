@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 // ContentType represents the type of content in a message part

@@ -15,9 +15,10 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gofast",
-	Short: "FastAgent CLI - Build effective agents using Model Context Protocol",
-	Long:  `FastAgent CLI - Build effective agents using Model Context Protocol (MCP).`,
+	Use:   "hive",
+	Short: "Hive - Intelligent Agent Framework",
+	Long: `Hive is a framework for building and deploying intelligent agents.
+It provides tools for agent composition, team coordination, and deployment.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Apply global flags
 		if noColor {
@@ -56,9 +57,9 @@ func init() {
 
 func showWelcome() error {
 	if !noColor {
-		color.New(color.Bold).Printf("\ngofast v0.1.0\n")
+		color.New(color.Bold).Printf("\nhive v0.1.0\n")
 	} else {
-		fmt.Printf("\ngofast v0.1.0\n")
+		fmt.Printf("\nhive v0.1.0\n")
 	}
 	fmt.Println("Build effective agents using Model Context Protocol (MCP)")
 
@@ -69,14 +70,31 @@ func showWelcome() error {
 
 	fmt.Println("\nGetting Started:")
 	fmt.Println("1. Set up a new project:")
-	fmt.Println("   gofast setup")
+	fmt.Println("   hive setup")
 	fmt.Println("\n2. Create Building Effective Agents workflow examples:")
-	fmt.Println("   gofast bootstrap workflow")
+	fmt.Println("   hive bootstrap workflow")
 	fmt.Println("\n3. Explore other examples:")
-	fmt.Println("   gofast bootstrap")
+	fmt.Println("   hive bootstrap")
 
 	fmt.Println("\nUse --help with any command for more information")
-	fmt.Println("Example: gofast bootstrap --help")
+	fmt.Println("Example: hive bootstrap --help")
 
 	return nil
+}
+
+func showVersion() {
+	if color.NoColor {
+		fmt.Printf("\nhive v0.1.0\n")
+	} else {
+		color.New(color.Bold).Printf("\nhive v0.1.0\n")
+	}
+}
+
+func showHelp(cmd *cobra.Command, args []string) {
+	fmt.Println("\nCommon Commands:")
+	fmt.Println("   hive setup")
+	fmt.Println("   hive bootstrap workflow")
+	fmt.Println("   hive bootstrap")
+	fmt.Println("")
+	fmt.Println("Example: hive bootstrap --help")
 }

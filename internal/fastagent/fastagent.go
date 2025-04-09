@@ -10,9 +10,9 @@ import (
 
 	"github.com/fatih/color"
 
-	"gofast/internal/agent"
-	"gofast/internal/config"
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/agent"
+	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 // Agent represents a configured agent that can be customized with options

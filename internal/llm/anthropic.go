@@ -9,8 +9,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"gofast/internal/config"
-	"gofast/internal/logging"
+	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/logging"
 )
 
 // AnthropicLLM implements the AugmentedLLM interface using Anthropic's Claude API

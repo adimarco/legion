@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 // AgentType represents different types of agents

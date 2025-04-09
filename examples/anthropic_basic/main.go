@@ -11,10 +11,10 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"gofast/internal/config"
-	"gofast/internal/fastagent"
-	"gofast/internal/llm"
-	"gofast/internal/tools"
+	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/fastagent"
+	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/internal/tools"
 )
 
 // getCurrentTime is a simple tool that returns the current time

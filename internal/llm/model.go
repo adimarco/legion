@@ -29,7 +29,7 @@ import (
 	"context"
 	"strings"
 
-	"gofast/internal/config"
+	"github.com/adimarco/hive/internal/config"
 )
 
 // MessageType represents the role of a message in a conversation.

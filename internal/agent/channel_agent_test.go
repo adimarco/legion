@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gofast/internal/config"
-	"gofast/internal/llm"
+	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/internal/llm"
 )
 
 // mockLLM implements a controlled test environment

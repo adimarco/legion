@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gofast/internal/config"
+	"github.com/adimarco/hive/internal/config"
 )
 
 func TestContext_Initialize(t *testing.T) {
