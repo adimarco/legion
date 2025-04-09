@@ -9,37 +9,57 @@ The memory system is designed around these key principles:
 */
 package llm
 
-// SimpleMemory is a basic in-memory implementation of the Memory interface
+import (
+	"sync"
+)
+
+// SimpleMemory provides a basic thread-safe in-memory implementation
 type SimpleMemory struct {
-	messages []Message
-	prompts  []Message
+	mu      sync.RWMutex
+	history []Message
+	prompts []Message
 }
 
 // NewSimpleMemory creates a new SimpleMemory instance
 func NewSimpleMemory() *SimpleMemory {
 	return &SimpleMemory{
-		messages: make([]Message, 0),
-		prompts:  make([]Message, 0),
+		history: make([]Message, 0),
+		prompts: make([]Message, 0),
 	}
 }
 
 // Add adds a message to history
 func (m *SimpleMemory) Add(msg Message, isPrompt bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Create a deep copy of the message
+	msgCopy := deepCopyMessage(msg)
+
 	if isPrompt {
-		m.prompts = append(m.prompts, msg)
+		m.prompts = append(m.prompts, msgCopy)
 	} else {
-		m.messages = append(m.messages, msg)
+		m.history = append(m.history, msgCopy)
 	}
 	return nil
 }
 
 // Get retrieves messages from memory
 func (m *SimpleMemory) Get(includeHistory bool) ([]Message, error) {
-	result := make([]Message, len(m.prompts))
-	copy(result, m.prompts)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
+	// Start with prompt messages
+	result := make([]Message, len(m.prompts))
+	for i, msg := range m.prompts {
+		result[i] = deepCopyMessage(msg)
+	}
+
+	// Add history if requested
 	if includeHistory {
-		result = append(result, m.messages...)
+		for _, msg := range m.history {
+			result = append(result, deepCopyMessage(msg))
+		}
 	}
 
 	return result, nil
@@ -47,7 +67,10 @@ func (m *SimpleMemory) Get(includeHistory bool) ([]Message, error) {
 
 // Clear clears the specified message types
 func (m *SimpleMemory) Clear(clearPrompts bool) error {
-	m.messages = make([]Message, 0)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.history = make([]Message, 0)
 	if clearPrompts {
 		m.prompts = make([]Message, 0)
 	}

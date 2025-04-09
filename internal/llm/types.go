@@ -161,9 +161,7 @@ type AugmentedLLM interface {
 	Cleanup() error
 }
 
-// Memory manages conversation history and prompt storage.
-// The interface is intentionally simple to allow for different
-// implementations (e.g., in-memory, persistent, distributed).
+// Memory manages conversation history and prompt storage
 type Memory interface {
 	// Add adds a message to history
 	Add(msg Message, isPrompt bool) error
