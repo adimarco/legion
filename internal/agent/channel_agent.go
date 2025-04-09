@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"gofast/internal/llm"
 )
@@ -56,7 +57,10 @@ func (ca *ChannelAgent) processMessages(ctx context.Context, ra *RunningAgent) {
 	for {
 		select {
 		case <-ctx.Done():
-			// Context cancelled, wait for in-flight messages
+			// Context cancelled, mark as closed and wait for in-flight messages
+			ca.mu.Lock()
+			ca.closed = true
+			ca.mu.Unlock()
 			return
 
 		case msg, ok := <-ca.input:
@@ -65,16 +69,32 @@ func (ca *ChannelAgent) processMessages(ctx context.Context, ra *RunningAgent) {
 				return
 			}
 
+			// Check if we're closed before processing
+			ca.mu.RLock()
+			closed := ca.closed
+			ca.mu.RUnlock()
+			if closed {
+				return
+			}
+
 			// Process message in separate goroutine
 			wg.Add(1)
 			go func(message string) {
 				defer wg.Done()
+
+				// Check context before processing
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 
 				response, err := ra.Send(message)
 				if err != nil {
 					// Try to send error, don't block if channel is full
 					select {
 					case ca.errors <- fmt.Errorf("failed to process message: %w", err):
+					case <-ctx.Done():
 					default:
 						// Error channel full, log or handle appropriately
 					}
@@ -94,10 +114,13 @@ func (ca *ChannelAgent) processMessages(ctx context.Context, ra *RunningAgent) {
 						select {
 						case ca.output <- response:
 							// Response sent successfully
+						case <-ctx.Done():
+							return
 						default:
 							// Output channel full, send error
 							select {
 							case ca.errors <- fmt.Errorf("output channel full"):
+							case <-ctx.Done():
 							default:
 								// Error channel full, log or handle appropriately
 							}
@@ -153,18 +176,21 @@ func (ca *ChannelAgent) Done() <-chan struct{} {
 // Close shuts down the agent and closes all channels
 func (ca *ChannelAgent) Close() {
 	ca.closeOnce.Do(func() {
-		// Mark as closed first
+		// Mark as closed first to prevent new messages
 		ca.mu.Lock()
 		ca.closed = true
 		ca.mu.Unlock()
 
 		// Close channels in order:
-		// 1. done - signals shutdown
-		// 2. input - stops new messages
-		// 3. errors - no more errors will be sent
-		// 4. output - last to close after all processing
-		close(ca.done)
+		// 1. input - stops new messages
+		// 2. done - signals shutdown
 		close(ca.input)
+		close(ca.done)
+
+		// Wait a short time for in-flight messages to complete
+		time.Sleep(100 * time.Millisecond)
+
+		// Close remaining channels
 		close(ca.errors)
 		close(ca.output)
 	})

@@ -110,7 +110,7 @@ func TestChannelAgent(t *testing.T) {
 		mock := newMockLLM()
 		agent := NewChannelAgent(testConfig("concurrent"), mock)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		require.NoError(t, agent.Start(ctx))
@@ -122,12 +122,20 @@ func TestChannelAgent(t *testing.T) {
 		errors := make(chan error, messageCount)
 
 		// Start response collector
+		collectorDone := make(chan struct{})
 		go func() {
+			defer close(collectorDone)
 			for {
 				select {
-				case resp := <-agent.Output():
+				case resp, ok := <-agent.Output():
+					if !ok {
+						return
+					}
 					responses <- resp
-				case err := <-agent.Errors():
+				case err, ok := <-agent.Errors():
+					if !ok {
+						return
+					}
 					errors <- err
 				case <-ctx.Done():
 					return
@@ -142,7 +150,10 @@ func TestChannelAgent(t *testing.T) {
 				defer wg.Done()
 				msg := fmt.Sprintf("message-%d", i)
 				if err := agent.Send(msg); err != nil {
-					errors <- err
+					select {
+					case errors <- err:
+					case <-ctx.Done():
+					}
 				}
 			}(i)
 		}
@@ -150,24 +161,46 @@ func TestChannelAgent(t *testing.T) {
 		// Wait for all sends to complete
 		wg.Wait()
 
-		// Collect responses
+		// Collect responses with timeout
 		receivedCount := 0
 		errorCount := 0
-		timeout := time.After(5 * time.Second)
+		timeout := time.After(2 * time.Second)
 
 	CollectLoop:
 		for receivedCount < messageCount {
 			select {
-			case <-responses:
+			case _, ok := <-responses:
+				if !ok {
+					break CollectLoop
+				}
 				receivedCount++
-			case err := <-errors:
+			case err, ok := <-errors:
+				if !ok {
+					break CollectLoop
+				}
 				errorCount++
 				t.Logf("received error: %v", err)
 			case <-timeout:
 				t.Errorf("timeout waiting for responses, got %d/%d", receivedCount, messageCount)
 				break CollectLoop
+			case <-ctx.Done():
+				t.Error("context cancelled while waiting for responses")
+				break CollectLoop
 			}
 		}
+
+		// Cancel context and wait for collector to finish
+		cancel()
+		select {
+		case <-collectorDone:
+			// Collector finished properly
+		case <-time.After(time.Second):
+			t.Error("timeout waiting for collector to finish")
+		}
+
+		// Close channels
+		close(responses)
+		close(errors)
 
 		assert.Equal(t, messageCount, receivedCount, "should receive all responses")
 		assert.Zero(t, errorCount, "should not receive any errors")
@@ -201,7 +234,6 @@ func TestChannelAgent(t *testing.T) {
 		mock.delay = 100 * time.Millisecond // Add delay to ensure message is in flight
 
 		agent := NewChannelAgent(testConfig("cancel"), mock)
-
 		ctx, cancel := context.WithCancel(context.Background())
 		require.NoError(t, agent.Start(ctx))
 
@@ -217,14 +249,10 @@ func TestChannelAgent(t *testing.T) {
 		// Verify channels are closed by trying to send/receive
 		assert.Error(t, agent.Send("test"), "should not be able to send after close")
 
-		_, ok := <-agent.Output()
-		assert.False(t, ok, "output channel should be closed")
-
-		_, ok = <-agent.Errors()
-		assert.False(t, ok, "errors channel should be closed")
-
-		_, ok = <-agent.Done()
-		assert.False(t, ok, "done channel should be closed")
+		// Verify all channels are closed
+		assertChannelClosed(t, agent.output, "output channel")
+		assertChannelClosed(t, agent.errors, "errors channel")
+		assertChannelClosed(t, agent.done, "done channel")
 	})
 
 	t.Run("channel full handling", func(t *testing.T) {
@@ -300,4 +328,21 @@ func TestChannelAgent(t *testing.T) {
 		// but we can verify we got all expected responses
 		assert.ElementsMatch(t, []string{"first", "second", "third"}, responses)
 	})
+}
+
+func assertChannelClosed[T any](t *testing.T, ch <-chan T, name string) {
+	select {
+	case _, ok := <-ch:
+		assert.False(t, ok, "%s should be closed", name)
+	default:
+		// If channel is buffered and not drained, try receiving with timeout
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case _, ok := <-ch:
+			assert.False(t, ok, "%s should be closed", name)
+		case <-timer.C:
+			t.Errorf("%s should be closed but timed out waiting", name)
+		}
+	}
 }

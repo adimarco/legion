@@ -4,17 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 )
 
 // Tool represents a callable tool with metadata and execution capabilities
 type Tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"` // JSON Schema for input validation
-	ArgsSchema  json.RawMessage `json:"parameters"`
-	Handler     ToolHandler     `json:"-"`    // Not serialized
-	Cost        uint64          `json:"cost"` // Credits per use (future monetization)
+	// Core metadata
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	Tags        []string `json:"tags"`
+
+	// Schema and validation
+	Schema json.RawMessage `json:"schema"` // JSON Schema for input validation
+
+	// Dependencies
+	Requires []string        `json:"requires"` // Required tools
+	Config   json.RawMessage `json:"config"`   // Tool configuration
+
+	// Execution
+	Handler ToolHandler `json:"-"`    // Not serialized
+	Cost    uint64      `json:"cost"` // Credits per use
+
+	// Lifecycle hooks (not serialized)
+	Initialize func(ctx context.Context) error `json:"-"`
+	Cleanup    func(ctx context.Context) error `json:"-"`
 }
 
 // ToolHandler defines the function signature for tool execution
@@ -22,30 +38,37 @@ type ToolHandler func(ctx context.Context, args map[string]any) (ToolResult, err
 
 // ToolResult represents the result of a tool execution
 type ToolResult struct {
-	Content  string         `json:"content"`  // Text content of the result
-	IsError  bool           `json:"is_error"` // Whether this result represents an error
-	Metadata map[string]any `json:"metadata"` // Additional result data
+	Content   string         `json:"content"`
+	IsError   bool           `json:"is_error"`
+	Metadata  map[string]any `json:"metadata"`
+	Cost      uint64         `json:"cost"`      // Actual cost incurred
+	Resources []string       `json:"resources"` // Resources accessed
 }
 
-// ToolRegistry manages tool registration and execution
+// ToolRegistry manages tool registration, discovery, and execution
 type ToolRegistry interface {
-	// Register adds a tool to the registry
+	// Registration
 	Register(tool Tool) error
+	Unregister(name string) error
 
-	// Get retrieves a tool by name
+	// Discovery
 	Get(name string) (Tool, error)
-
-	// List returns all registered tools
 	List() []Tool
+	Search(query map[string]any) []Tool
 
-	// Call executes a tool by name
+	// Execution
 	Call(ctx context.Context, name string, args map[string]any) (ToolResult, error)
+	Stream(ctx context.Context, name string, args map[string]any) (<-chan ToolResult, error)
 }
 
-// ToolProvider defines an interface for systems that can provide tools
+// ToolProvider defines a system that can provide tools
 type ToolProvider interface {
-	// GetTools returns the tools provided by this provider
+	// Discovery
 	GetTools() []Tool
+
+	// Lifecycle
+	Initialize(ctx context.Context) error
+	Cleanup(ctx context.Context) error
 }
 
 // SimpleToolRegistry provides a basic thread-safe implementation of ToolRegistry
@@ -63,22 +86,62 @@ func NewSimpleToolRegistry() *SimpleToolRegistry {
 
 // Register implements ToolRegistry.Register
 func (r *SimpleToolRegistry) Register(tool Tool) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.tools[tool.Name]; exists {
-		return fmt.Errorf("tool %q already registered", tool.Name)
-	}
+	key := fmt.Sprintf("%s@%s", tool.Name, tool.Version)
 
 	// Validate the tool
 	if tool.Name == "" {
 		return fmt.Errorf("tool name is required")
 	}
+	if tool.Version == "" {
+		return fmt.Errorf("tool version is required")
+	}
 	if tool.Handler == nil {
 		return fmt.Errorf("tool handler is required")
 	}
 
-	r.tools[tool.Name] = tool
+	// Check dependencies first, outside the lock
+	for _, dep := range tool.Requires {
+		if _, err := r.Get(dep); err != nil {
+			return fmt.Errorf("missing dependency: %s", dep)
+		}
+	}
+
+	// Initialize the tool if needed
+	if tool.Initialize != nil {
+		if err := tool.Initialize(context.Background()); err != nil {
+			return fmt.Errorf("failed to initialize tool: %w", err)
+		}
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check for duplicate registration
+	if _, exists := r.tools[key]; exists {
+		return fmt.Errorf("tool %q version %q already registered", tool.Name, tool.Version)
+	}
+
+	r.tools[key] = tool
+	return nil
+}
+
+// Unregister implements ToolRegistry.Unregister
+func (r *SimpleToolRegistry) Unregister(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Find all versions of the tool
+	for key, tool := range r.tools {
+		if tool.Name == name {
+			// Cleanup if needed
+			if tool.Cleanup != nil {
+				if err := tool.Cleanup(context.Background()); err != nil {
+					return fmt.Errorf("failed to cleanup tool: %w", err)
+				}
+			}
+			delete(r.tools, key)
+		}
+	}
 	return nil
 }
 
@@ -86,6 +149,25 @@ func (r *SimpleToolRegistry) Register(tool Tool) error {
 func (r *SimpleToolRegistry) Get(name string) (Tool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	// Parse name and version
+	if !strings.Contains(name, "@") {
+		// Find latest version
+		var latest Tool
+		var latestVer string
+		for key, tool := range r.tools {
+			if strings.HasPrefix(key, name+"@") {
+				if latestVer == "" || tool.Version > latestVer {
+					latest = tool
+					latestVer = tool.Version
+				}
+			}
+		}
+		if latestVer != "" {
+			return latest, nil
+		}
+		return Tool{}, fmt.Errorf("tool %q not found", name)
+	}
 
 	tool, exists := r.tools[name]
 	if !exists {
@@ -106,6 +188,20 @@ func (r *SimpleToolRegistry) List() []Tool {
 	return tools
 }
 
+// Search implements ToolRegistry.Search
+func (r *SimpleToolRegistry) Search(query map[string]any) []Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var results []Tool
+	for _, tool := range r.tools {
+		if matchesQuery(tool, query) {
+			results = append(results, tool)
+		}
+	}
+	return results
+}
+
 // Call implements ToolRegistry.Call
 func (r *SimpleToolRegistry) Call(ctx context.Context, name string, args map[string]any) (ToolResult, error) {
 	tool, err := r.Get(name)
@@ -113,10 +209,113 @@ func (r *SimpleToolRegistry) Call(ctx context.Context, name string, args map[str
 		return ToolResult{}, err
 	}
 
-	// TODO: Add input validation against schema
-	// TODO: Add cost tracking
+	// Validate arguments
+	if err := ValidateToolArgs(&tool, args); err != nil {
+		return ToolResult{}, fmt.Errorf("invalid arguments: %w", err)
+	}
 
-	return tool.Handler(ctx, args)
+	// Check dependencies
+	if err := r.checkDependencies(ctx, tool); err != nil {
+		return ToolResult{}, fmt.Errorf("dependency check failed: %w", err)
+	}
+
+	// Execute the tool
+	result, err := tool.Handler(ctx, args)
+	if err != nil {
+		return NewErrorResult(err), nil
+	}
+
+	return result, nil
+}
+
+// Stream implements ToolRegistry.Stream
+func (r *SimpleToolRegistry) Stream(ctx context.Context, name string, args map[string]any) (<-chan ToolResult, error) {
+	resultChan := make(chan ToolResult)
+
+	tool, err := r.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate arguments
+	if err := ValidateToolArgs(&tool, args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+
+	// Check dependencies
+	if err := r.checkDependencies(ctx, tool); err != nil {
+		return nil, fmt.Errorf("dependency check failed: %w", err)
+	}
+
+	// Start streaming in a goroutine
+	go func() {
+		defer close(resultChan)
+
+		result, err := tool.Handler(ctx, args)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return
+			case resultChan <- NewErrorResult(err):
+				return
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case resultChan <- result:
+		}
+	}()
+
+	return resultChan, nil
+}
+
+// checkDependencies verifies that all required tools are available
+func (r *SimpleToolRegistry) checkDependencies(ctx context.Context, tool Tool) error {
+	for _, dep := range tool.Requires {
+		if _, err := r.Get(dep); err != nil {
+			return fmt.Errorf("required tool %q not found", dep)
+		}
+	}
+	return nil
+}
+
+// matchesQuery checks if a tool matches the search query
+func matchesQuery(tool Tool, query map[string]any) bool {
+	if len(query) == 0 {
+		return true
+	}
+
+	for k, v := range query {
+		switch k {
+		case "name":
+			if tool.Name != v.(string) {
+				return false
+			}
+		case "category":
+			if tool.Category != v.(string) {
+				return false
+			}
+		case "tag":
+			found := false
+			for _, tag := range tool.Tags {
+				if tag == v.(string) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// GetArgsSchema implements ToolValidator.GetArgsSchema
+func (t *Tool) GetArgsSchema() json.RawMessage {
+	return t.Schema
 }
 
 // NewToolResult creates a successful tool result
@@ -133,9 +332,4 @@ func NewErrorResult(err error) ToolResult {
 		Content: err.Error(),
 		IsError: true,
 	}
-}
-
-// GetArgsSchema returns the JSON schema for validating tool arguments
-func (t *Tool) GetArgsSchema() json.RawMessage {
-	return t.InputSchema
 }
