@@ -1,130 +1,223 @@
 # FastAgent Migration Plan: Python to Go
 
-## Incremental Development Approach
+## Current Implementation Analysis
 
-Each phase represents a complete, testable milestone. We'll only move to the next phase once the current one is fully functional and well-tested.
+### Existing Strong Points
+1. **Core Types and Interfaces** (internal/llm/model.go):
+   - Strong AugmentedLLM interface
+   - Well-defined Message and ToolCall types
+   - Provider interface for LLM implementations
 
-### Phase 1: Core Foundation (Completed)
-Goal: Basic configuration loading and validation
+2. **Memory System** (internal/llm/memory.go):
+   - Thread-safe memory implementation
+   - Support for history and prompts
+   - Clean interface design
 
-- [x] Basic CLI structure
-  - [x] Create core commands
-  - [x] Implement help system
-  - [x] Add configuration command
-- [x] Configuration System
-  - [x] Create core settings structs
-  - [x] Implement YAML loading
-  - [x] Add environment variable support
-  - [x] Write tests for config loading
-  - [x] Add validation for required fields
-- [x] Context Management
-  - [x] Create base context struct
-  - [x] Implement context initialization
-  - [x] Add cleanup handling
-  - [x] Add context-dependent interface
-  - [x] Implement thread-safe context access
-- [x] Logging Foundation
-  - [x] Implement structured logging using Zap
-  - [x] Add log levels and namespacing
-  - [x] Create console and file output formats
-  - [x] Add comprehensive test coverage
+3. **Context Management** (internal/context/contextdep.go):
+   - Thread-safe context handling
+   - Global/local context support
+   - Clean dependency injection
 
-### Phase 2: LLM Foundation (In Progress)
-Goal: Establish core LLM abstractions and testing tools
+4. **Basic Agent Implementation** (internal/agent/agent.go):
+   - Basic agent types defined
+   - Configuration structure
+   - Simple message passing
 
-- [x] Core LLM Types
-  - [x] Define Message and ToolCall types
-  - [x] Create AugmentedLLM interface
-  - [x] Add Provider interface
-  - [x] Define request/response types
+5. **LLM Implementations**:
+   - Anthropic integration (internal/llm/anthropic.go)
+   - PassthroughLLM for testing (internal/llm/passthrough.go)
+   - PlaybackLLM for testing (internal/llm/playback.go)
 
-- [x] Memory System
-  - [x] Define Memory interface
-  - [x] Implement SimpleMemory
-  - [x] Add thread-safe operations
-  - [x] Support prompt/history separation
+### Gaps vs Python Implementation
 
-- [x] Testing Tools
-  - [x] Implement PassthroughLLM
-    - [x] Basic message echo
-    - [x] Fixed response support
-    - [x] Tool call parsing
-    - [x] History management
-  - [x] Implement PlaybackLLM
-    - [x] Message sequence recording
-    - [x] Ordered playback
-    - [x] Exhaustion handling
-    - [x] History management
-  - [x] Add comprehensive test coverage
-  - [x] Create interactive demos
+1. **Agent Framework**:
+   - Need MCPAggregator equivalent (mcp_agent/mcp/mcp_aggregator.py)
+   - Need BaseAgent with tool support (mcp_agent/agents/base_agent.py)
+   - Need AgentApp container (mcp_agent/core/agent_app.py)
 
-- [ ] Message Serialization
-  - [ ] YAML format support
-  - [ ] JSON format support
-  - [ ] History save/load
-  - [ ] Test scenario support
+2. **Tool System**:
+   - Need tool registry (mcp_agent/mcp/interfaces.py)
+   - Need tool validation (mcp_agent/mcp/interfaces.py)
+   - Need MCP server integration (mcp_agent/mcp_server/agent_server.py)
 
-### Phase 3: Provider Integration (Not Started)
-Goal: Add initial model provider support
+3. **Agent Patterns**:
+   - Need chain implementation (mcp_agent/agents/workflow/chain_agent.py)
+   - Need router implementation (mcp_agent/agents/workflow/router_agent.py)
+   - Need parallel implementation (mcp_agent/agents/workflow/parallel_agent.py)
 
-- [ ] Base Provider Implementation
-  - [ ] Define provider registry
-  - [ ] Add model factory support
-  - [ ] Implement rate limiting
-  - [ ] Add error handling
+4. **Human Input**:
+   - Need human input system (mcp_agent/human_input/types.py)
+   - Need signal handling
+   - Need timeout management
 
-- [ ] Anthropic Integration
-  - [ ] Add Claude client support
-  - [ ] Implement message conversion
-  - [ ] Add tool calling support
-  - [ ] Handle streaming responses
+## Implementation Plan
 
-- [ ] OpenAI Integration
-  - [ ] Add chat completion support
-  - [ ] Implement function calling
-  - [ ] Add streaming capabilities
-  - [ ] Handle model-specific features
+### Phase 4: Agent Framework (In Progress)
+Goal: Implement agent application framework and composition
 
-### Phase 4: Agent Runtime (Not Started)
-Goal: Enable agent composition and workflows
+Priority 1: Enhanced Agent Core
+- [ ] Enhance BaseAgent
+  - [ ] Add ContextDependent embedding
+  - [ ] Add tool support
+  - [ ] Add human input support
+  - [ ] Add channel-based messaging
+  Reference: mcp_agent/agents/base_agent.py
 
-- [ ] Tool System
-  - [ ] Define tool interfaces
-  - [ ] Add argument validation
-  - [ ] Implement result handling
-  - [ ] Add tool discovery
+- [ ] Agent Registry
+  - [ ] Thread-safe agent management
+  - [ ] Type-safe agent lookup
+  - [ ] Lifecycle management (init/cleanup)
+  - [ ] Status monitoring
+  Reference: mcp_agent/core/agent_app.py
 
-- [ ] MCP Server Integration
-  - [ ] Add server lifecycle management
-  - [ ] Implement stdio transport
-  - [ ] Create server registry
-  - [ ] Add tool routing
+Priority 2: Channel-Based Chain Implementation
+- [ ] Basic Chain Agent
+  - [ ] Channel-based message passing
+  - [ ] Goroutine per agent
+  - [ ] Error propagation
+  - [ ] Clean shutdown
+  Reference: mcp_agent/agents/workflow/chain_agent.py
 
-- [ ] Agent Patterns
-  - [ ] Define agent interface
-  - [ ] Implement simple chaining
-  - [ ] Add parallel execution
-  - [ ] Support router pattern
+- [ ] Advanced Chain Features
+  - [ ] Fan-out to multiple chains
+  - [ ] Result aggregation
+  - [ ] Backpressure handling
+  - [ ] Timeout management
+  Reference: mcp_agent/agents/workflow/chain_agent.py (generate method)
 
-### Phase 5: Advanced Features (Not Started)
+Priority 3: Interactive Features
+- [ ] Async REPL
+  - [ ] Non-blocking input handling
+  - [ ] Message queuing
+  - [ ] Command cancellation
+  - [ ] History management
+  Reference: mcp_agent/core/interactive_prompt.py
+
+- [ ] Human Input System
+  - [ ] Channel-based input collection
+  - [ ] Context-based timeouts
+  - [ ] Cancellation support
+  - [ ] Signal handling
+  Reference: mcp_agent/human_input/types.py
+
+Priority 4: Agent Factory and Configuration
+- [ ] Agent Factory System
+  - [ ] Type-safe agent creation
+  - [ ] Channel setup and wiring
+  - [ ] Configuration validation
+  - [ ] Error handling
+  Reference: mcp_agent/core/direct_factory.py
+
+### Phase 5: Agent Patterns
+Goal: Implement advanced agent patterns and workflows
+
+- [ ] Router Pattern
+  - [ ] Message routing logic
+  - [ ] Agent selection
+  - [ ] Routing instructions
+  - [ ] Fallback handling
+  Reference: mcp_agent/agents/workflow/router_agent.py
+
+- [ ] Parallel Pattern
+  - [ ] Fan-out execution
+  - [ ] Fan-in aggregation
+  - [ ] Result synchronization
+  - [ ] Error handling
+  Reference: mcp_agent/agents/workflow/parallel_agent.py
+
+- [ ] Evaluator-Optimizer Pattern
+  - [ ] Quality rating system
+  - [ ] Refinement cycles
+  - [ ] Feedback integration
+  - [ ] Termination conditions
+  Reference: mcp_agent/agents/workflow/evaluator_optimizer.py
+
+### Phase 6: Tool System
+Goal: Implement comprehensive tool support
+
+- [ ] Tool Registry
+  - [ ] Tool discovery
+  - [ ] Tool validation
+  - [ ] Argument parsing
+  - [ ] Result handling
+  Reference: mcp_agent/mcp/interfaces.py
+
+- [ ] MCP Integration
+  - [ ] Server lifecycle management
+  - [ ] Transport protocols (stdio/sse)
+  - [ ] Tool routing
+  - [ ] Resource handling
+  Reference: mcp_agent/mcp/mcp_aggregator.py
+
+### Phase 7: Production Features
 Goal: Add production-ready features
 
 - [ ] Model Factory
-  - [ ] Add provider configuration
-  - [ ] Implement model aliases
-  - [ ] Add reasoning levels
-  - [ ] Create model selection logic
+  - [ ] Provider configuration
+  - [ ] Model aliases
+  - [ ] Reasoning levels
+  - [ ] Selection logic
+  Reference: mcp_agent/llm/model_factory.py
 
 - [ ] Progress System
-  - [ ] Add event tracking
-  - [ ] Implement progress display
-  - [ ] Create status updates
+  - [ ] Event tracking
+  - [ ] Progress display
+  - [ ] Status updates
+  - [ ] Cancellation support
+  Reference: mcp_agent/event_progress.py
 
-- [ ] Advanced Workflows
-  - [ ] Add parallel execution
-  - [ ] Implement error handling
-  - [ ] Add resource management
-  - [ ] Create workflow patterns
+## Key Implementation Notes
+
+### Go-Specific Patterns
+
+1. **Channel Usage**:
+```go
+type Agent interface {
+    // Message channels
+    Input() chan<- Message
+    Output() <-chan Message
+    // Control channels
+    Done() <-chan struct{}
+    Errors() <-chan error
+}
+```
+
+2. **Context Integration**:
+```go
+type BaseAgent struct {
+    *context.BaseContextDependent
+    msgChan   chan Message
+    toolChan  chan ToolCall
+    doneChan  chan struct{}
+}
+```
+
+3. **Tool Registry**:
+```go
+type ToolRegistry interface {
+    Register(name string, tool Tool) error
+    Get(name string) (Tool, error)
+    List() []Tool
+    Call(ctx context.Context, name string, args map[string]any) (any, error)
+}
+```
+
+### Python Features to Adapt
+
+1. **MCPAggregator** (mcp_agent/mcp/mcp_aggregator.py):
+   - Replace async/await with channels
+   - Use Go's context for cancellation
+   - Keep thread-safe server management
+
+2. **BaseAgent** (mcp_agent/agents/base_agent.py):
+   - Keep tool support
+   - Use channels for message passing
+   - Maintain context awareness
+
+3. **AgentApp** (mcp_agent/core/agent_app.py):
+   - Implement registry pattern
+   - Use Go interfaces for type safety
+   - Keep attribute-style access
 
 ## Development Guidelines
 
@@ -148,10 +241,10 @@ Goal: Add production-ready features
 
 ### 4. Value Delivery
 Each phase delivers testable functionality:
-- Phase 2: Testing tools and LLM abstractions
-- Phase 3: Real LLM integration
-- Phase 4: Basic agent capabilities
-- Phase 5: Production features
+- Phase 4: Agent framework and composition
+- Phase 5: Advanced agent patterns
+- Phase 6: Tool system and MCP integration
+- Phase 7: Production features
 
 ## Current Progress
 
@@ -162,18 +255,49 @@ Each phase delivers testable functionality:
 - [x] Logging foundation
 - [x] Core LLM types
 - [x] Memory system
+- [x] Message serialization
 - [x] PassthroughLLM
 - [x] PlaybackLLM
+- [x] Anthropic integration
 
 ### In Progress
-- [ ] Message serialization
-- [ ] Model factory integration
+- [ ] Enhanced BaseAgent implementation
+- [ ] Channel-based messaging system
+- [ ] Tool registry system
 
 ### Next Steps
-1. Implement message serialization
-2. Add model factory support
-3. Begin Anthropic integration
-4. Start on tool system
+1. Complete the enhanced BaseAgent with channel support
+2. Implement the tool registry
+3. Add the chain pattern implementation
+4. Begin MCP server integration
+
+## Key Python Implementation Files
+
+### Core Framework
+- mcp_agent/core/agent_app.py - Main agent application container
+- mcp_agent/core/direct_factory.py - Agent factory system
+- mcp_agent/core/direct_decorators.py - Agent decorators
+- mcp_agent/core/agent_types.py - Agent type definitions
+- mcp_agent/core/fastagent.py - Main FastAgent class
+
+### Agent Implementation
+- mcp_agent/agents/base_agent.py - Base agent implementation
+- mcp_agent/agents/agent.py - Main agent class
+
+### Workflow Patterns
+- mcp_agent/agents/workflow/chain_agent.py - Chain pattern
+- mcp_agent/agents/workflow/router_agent.py - Router pattern
+- mcp_agent/agents/workflow/parallel_agent.py - Parallel pattern
+- mcp_agent/agents/workflow/evaluator_optimizer.py - Evaluator-Optimizer pattern
+
+### LLM and Tools
+- mcp_agent/llm/model_factory.py - Model factory and provider registry
+- mcp_agent/mcp/interfaces.py - Core interfaces including tool support
+- mcp_agent/mcp/mcp_aggregator.py - MCP server integration
+
+### Human Input and Progress
+- mcp_agent/human_input/types.py - Human input system
+- mcp_agent/event_progress.py - Progress tracking system
 
 ## Questions & Decisions
 
