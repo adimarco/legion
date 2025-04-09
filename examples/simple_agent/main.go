@@ -26,13 +26,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Create a FastAgent instance
-	fast := agent.NewFastAgent("Agent Example", llmInstance)
-
-	// Create an agent with a specific instruction
-	sizer := fast.NewAgent(agent.AgentConfig{
+	// Create an agent instance
+	sizer := agent.NewAgent(agent.AgentConfig{
+		Name:        "Agent Example",
 		Instruction: "Given an object, respond only with an estimate of its size.",
-	})
+	}, llmInstance)
 
 	// Run the agent
 	runningAgent, err := sizer.Run(ctx)
