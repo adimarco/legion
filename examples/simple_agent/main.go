@@ -10,26 +10,22 @@ import (
 )
 
 func main() {
-	// Create a new LLM instance (using passthrough for testing)
-	llmInstance := llm.NewPassthroughLLM("test-llm")
+	// Create a new LLM instance using Anthropic
+	llmInstance := llm.NewAnthropicLLM("test-llm")
 
 	// Set up a test context
 	ctx := context.Background()
 
-	// Initialize the LLM with a fixed response for testing
-	msg := llm.Message{
-		Type:    llm.MessageTypeUser,
-		Content: "***FIXED_RESPONSE The size is approximately 3,475 kilometers in diameter",
-	}
-	_, err := llmInstance.Generate(ctx, msg, nil)
-	if err != nil {
+	// Initialize the LLM
+	if err := llmInstance.Initialize(ctx, nil); err != nil {
 		log.Fatal(err)
 	}
 
 	// Create an agent instance
 	sizer := agent.NewAgent(agent.AgentConfig{
-		Name:        "Agent Example",
-		Instruction: "Given an object, respond only with an estimate of its size.",
+		Name:        "Size Estimator",
+		Instruction: "You are a helpful AI assistant that specializes in estimating the sizes of objects. Given an object, respond only with an estimate of its size in appropriate units.",
+		Model:       "claude-3-sonnet-20240320",
 	}, llmInstance)
 
 	// Run the agent
@@ -39,7 +35,7 @@ func main() {
 	}
 
 	// Example of single message interaction
-	response, err := runningAgent.Send("the moon")
+	response, err := runningAgent.Send("How big is the moon?")
 	if err != nil {
 		log.Fatal(err)
 	}
