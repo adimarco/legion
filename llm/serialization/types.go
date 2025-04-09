@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/llm"
 )
 
 // ContentType represents the type of content in a message part

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adimarco/hive/internal/cli"
+	"github.com/adimarco/hive/cli"
 )
 
 func main() {

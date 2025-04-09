@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adimarco/hive/internal/config"
+	"github.com/adimarco/hive/config"
 	"github.com/spf13/cobra"
 )
 

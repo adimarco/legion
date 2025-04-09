@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/llm"
 )
 
 // LoadConversation loads a conversation from a YAML file.

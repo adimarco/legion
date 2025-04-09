@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/llm"
 )
 
 // HistoryMetadata contains metadata about a saved conversation history

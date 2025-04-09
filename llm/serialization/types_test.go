@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/adimarco/hive/internal/llm"
+	"github.com/adimarco/hive/llm"
 )
 
 func TestSerializedMessage_Conversion(t *testing.T) {

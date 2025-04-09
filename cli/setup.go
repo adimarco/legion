@@ -8,7 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/adimarco/hive/internal/cli/templates"
+	"github.com/adimarco/hive/cli/templates"
 )
 
 var (
