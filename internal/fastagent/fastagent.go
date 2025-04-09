@@ -66,6 +66,32 @@ func (a *Agent) WithParams(params *llm.RequestParams) *Agent {
 	return a
 }
 
+// WithTools adds MCP tools to the agent
+func (a *Agent) WithTools(tools ...string) *Agent {
+	if a.params == nil {
+		a.params = &llm.RequestParams{}
+	}
+	if a.params.Tools == nil {
+		a.params.Tools = make([]string, 0)
+	}
+	a.params.Tools = append(a.params.Tools, tools...)
+	return a
+}
+
+// WithConfig adds additional configuration to the agent
+func (a *Agent) WithConfig(cfg map[string]any) *Agent {
+	if a.params == nil {
+		a.params = &llm.RequestParams{}
+	}
+	if a.params.Config == nil {
+		a.params.Config = make(map[string]any)
+	}
+	for k, v := range cfg {
+		a.params.Config[k] = v
+	}
+	return a
+}
+
 // Team creates a new FastAgent instance with the given agents
 func Team(name string, cfg *Config, agents ...*Agent) *FastAgent {
 	// Create context with signal handling
@@ -98,6 +124,50 @@ func Team(name string, cfg *Config, agents ...*Agent) *FastAgent {
 		fmt.Printf("Error initializing LLM: %v\n", err)
 		cancel()
 		return f
+	}
+
+	// Initialize all agents
+	for _, a := range agents {
+		config := agent.AgentConfig{
+			Name:        a.name,
+			Instruction: a.instruction,
+			Type:        agent.AgentTypeBasic,
+			Model:       a.model,
+			UseHistory:  a.useHistory,
+		}
+
+		channelAgent := agent.NewChannelAgent(config, f.llm)
+		if err := channelAgent.Start(ctx); err != nil {
+			fmt.Printf("Error starting agent %s: %v\n", a.name, err)
+			continue
+		}
+
+		f.agents[a.name] = channelAgent
+	}
+
+	return f
+}
+
+// TeamWithLLM creates a new FastAgent instance with a specific LLM
+func TeamWithLLM(name string, llm llm.AugmentedLLM, agents ...*Agent) *FastAgent {
+	// Create context with signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Handle Ctrl+C gracefully
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\nShutting down gracefully...")
+		cancel()
+	}()
+
+	f := &FastAgent{
+		name:   name,
+		agents: make(map[string]*agent.ChannelAgent),
+		ctx:    ctx,
+		cancel: cancel,
+		llm:    llm,
 	}
 
 	// Initialize all agents

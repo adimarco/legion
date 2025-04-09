@@ -158,10 +158,14 @@ func (ca *ChannelAgent) Close() {
 		ca.closed = true
 		ca.mu.Unlock()
 
-		// Then close channels
+		// Close channels in order:
+		// 1. done - signals shutdown
+		// 2. input - stops new messages
+		// 3. errors - no more errors will be sent
+		// 4. output - last to close after all processing
 		close(ca.done)
 		close(ca.input)
-		close(ca.output)
 		close(ca.errors)
+		close(ca.output)
 	})
 }

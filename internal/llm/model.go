@@ -107,28 +107,17 @@ type ToolCall struct {
 	Response string `json:"response,omitempty"`
 }
 
-// RequestParams configures how the LLM should process the request.
-// This abstraction allows for provider-agnostic configuration while
-// supporting provider-specific features through the Metadata field.
+// RequestParams holds parameters for an LLM request
 type RequestParams struct {
-	// Model specifies which model to use
-	Model string `json:"model"`
-	// SystemPrompt provides system-level instructions
-	SystemPrompt string `json:"system_prompt,omitempty"`
-	// MaxTokens limits the response length
-	MaxTokens int `json:"max_tokens,omitempty"`
-	// Temperature controls response randomness
-	Temperature float32 `json:"temperature,omitempty"`
-	// StopSequences defines custom stop tokens
-	StopSequences []string `json:"stop_sequences,omitempty"`
-	// UseHistory determines if conversation history should be included
-	UseHistory bool `json:"use_history"`
-	// ParallelTools enables concurrent tool execution
-	ParallelTools bool `json:"parallel_tools"`
-	// MaxIterations limits the number of generation attempts
-	MaxIterations int `json:"max_iterations"`
-	// Metadata allows for provider-specific parameters
-	Metadata map[string]any `json:"metadata,omitempty"`
+	SystemPrompt  string         // System prompt to use
+	Model         string         // Model to use
+	Temperature   float32        // Temperature for sampling
+	MaxTokens     int            // Maximum tokens to generate
+	UseHistory    bool           // Whether to include conversation history
+	ParallelTools bool           // Whether to run tools in parallel
+	MaxIterations int            // Maximum number of tool call iterations
+	Tools         []string       // Required MCP tools
+	Config        map[string]any // Additional configuration
 }
 
 // AugmentedLLM represents an LLM enhanced with tools, memory, and context management.

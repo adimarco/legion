@@ -1,8 +1,12 @@
-# FastAgent Registry Vision
+# Agent Registry & Platform Vision
 
 ## Overview
 
-FastAgent Registry aims to be the "npm for AI agents" - a decentralized registry where developers can publish, discover, and compose AI agents into workflows. The goal is to create an ecosystem where specialized agents can be easily shared, versioned, and integrated into larger systems.
+Think "npm for AI agents" meets "Slack App Directory" - a decentralized registry and platform where developers can:
+1. Publish and version agent configurations
+2. Discover and compose agents into teams
+3. Deploy agents to various communication channels
+4. Manage agent dependencies and tools
 
 ## Core Concepts
 
@@ -10,206 +14,238 @@ FastAgent Registry aims to be the "npm for AI agents" - a decentralized registry
 
 ```go
 type AgentPackage struct {
-    Name        string           // e.g. "skiddie420/cpo"
+    Name        string           // e.g. "skiddie420/cpo@2.1.7"
     Version     string           // Semantic version
     Manifest    AgentManifest    // Configuration and requirements
     Prompts     []string         // Core instructions
     Tools       []ToolSpec       // Required tool integrations
     Schemas     []IOSchema       // Input/output specifications
 }
+
+type AgentManifest struct {
+    Name          string            // Display name
+    Description   string            // What this agent does
+    Author        string            // Package author
+    Homepage      string            // Documentation URL
+    License       string            // License type
+    Keywords      []string          // Search tags
+    Dependencies  map[string]string // Required tools and versions
+    Config        map[string]any    // Default configuration
+    SetupSteps    []SetupStep      // Required setup (API keys, etc.)
+}
 ```
 
-Example usage:
-```go
-team := fastagent.Team("Product Planning",
-    registry.Load("skiddie420/cpo@0.2.17", 
-        WithAPIKeys(map[string]string{
-            "jira": os.Getenv("JIRA_TOKEN"),
-            "figma": os.Getenv("FIGMA_TOKEN"),
-        }),
-    ),
-)
-
-storyMap, err := team.Send("cpo", "Create a story map for our new checkout flow")
-```
-
-### 2. Versioning and Compatibility
-
-- Semantic versioning (MAJOR.MINOR.PATCH)
-- Compatibility matrices for:
-  - LLM models and capabilities
-  - Tool dependencies
-  - Other agent dependencies
-- Automated testing against stated requirements
-
-### 3. Tool Registry
-
-- Standardized tool interfaces
-- Version management for API integrations
-- Security scanning and sandboxing
-- Usage analytics and reliability metrics
-
-### 4. Composition Patterns
+### 2. Agent Spaces
 
 ```go
-// Chain multiple agents
-workflow := registry.Chain(
-    registry.Load("research/market-analyst@1.2.0"),
-    registry.Load("product/feature-spec@2.1.0"),
-    registry.Load("design/wireframe@0.9.0"),
-)
-
-// Parallel processing
-results := registry.Parallel(
-    registry.Load("security/penetration-test@1.0.0"),
-    registry.Load("performance/load-test@2.3.1"),
-    registry.Load("accessibility/wcag@1.1.0"),
-)
-```
-
-## Key Features
-
-### 1. Discovery and Search
-- Semantic search for agents by capability
-- Rating and review system
-- Usage statistics and popularity metrics
-- Categories and tags
-
-### 2. Security and Trust
-- Code signing and verification
-- Reputation system for publishers
-- Automated security scanning
-- Resource usage limits and quotas
-
-### 3. Integration and Extension
-```go
-// Define a new agent
-type CPOAgent struct {
-    fastagent.BaseAgent
-    jira  *jira.Client
-    figma *figma.Client
+type AgentSpace struct {
+    ID          string           // Unique space identifier
+    Name        string           // Display name
+    Description string           // Space purpose
+    Channels    []Channel        // Communication channels
+    Teams       []Team           // Agent teams
+    Config      SpaceConfig      // Space-wide settings
 }
 
-// Publish to registry
-registry.Publish("skiddie420/cpo", CPOAgent{
-    Version: "0.2.17",
-    Requirements: []string{
-        "jira@^2.0.0",
-        "figma@^1.0.0",
+type Channel struct {
+    Type     string   // slack, discord, terminal, etc.
+    Config   any      // Channel-specific configuration
+    Members  []string // Agent references (e.g. "cpo@2.1.7")
+}
+```
+
+### 3. Command Interface
+
+```bash
+# Add agents to a space
+agentctl space create dev-team
+agentctl agent add dev-team cpo@2.1.7 devops@1.2.3
+
+# Connect to channels
+agentctl channel add dev-team slack --channel=#engineering
+agentctl channel add dev-team discord --server=123456
+
+# Search registry
+agentctl search "devops aws"
+agentctl info devops@1.2.3
+
+# Manage versions
+agentctl upgrade dev-team --all
+agentctl rollback dev-team cpo@2.1.6
+```
+
+### 4. Slack Integration
+
+```
+/agent add @Justin role:cpo
+> Adding CPO agent "Justin" (using skiddie420/cpo@2.1.7)...
+> Required setup:
+> 1. JIRA API key
+> 2. GitHub access token
+> Please visit: https://agents.dev/setup/abc123
+
+/agent search devops aws
+> Found 3 matching agents:
+> 1. aws-specialist@3.2.1 - AWS infrastructure expert
+> 2. cloud-architect@2.1.0 - Multi-cloud architecture
+> 3. sre-oncall@1.9.2 - SRE with AWS focus
+
+/agent add @Mus aws-specialist@3.2.1
+> Adding AWS Specialist "Mus"...
+> Agent ready! Use @Mus to interact.
+```
+
+## Implementation Components
+
+### 1. Registry Service
+- Agent package storage
+- Version management
+- Search and discovery
+- Download stats
+- Security scanning
+
+### 2. Platform Service
+- Space management
+- Channel integration
+- Agent lifecycle
+- Configuration management
+- Monitoring
+
+### 3. Tool Integration
+- MCP tool discovery
+- Tool version management
+- Dependency resolution
+- Setup automation
+
+### 4. Channel Adapters
+- Slack integration
+- Discord support
+- Terminal interface
+- Custom protocols
+
+## Security & Trust
+
+### 1. Package Verification
+```go
+type PackageSignature struct {
+    Author    string    // Package author
+    Timestamp time.Time // Signing time
+    Hash      string    // Content hash
+    Signature string    // Digital signature
+}
+```
+
+### 2. Access Control
+```go
+type SpacePolicy struct {
+    AllowedRegistries []string          // Trusted registries
+    AllowedAuthors    []string          // Trusted authors
+    RequiredScans     []string          // Required security scans
+    ChannelPolicies   map[string]Policy // Per-channel rules
+}
+```
+
+## Example Usage
+
+### 1. Team Setup
+```go
+space := registry.NewSpace("ProductTeam",
+    registry.WithChannel("slack", "#product"),
+    registry.WithAgents(
+        "skiddie420/cpo@2.1.7",
+        "designguru/ux@1.5.0",
+        "techie/architect@3.1.0",
+    ),
+)
+```
+
+### 2. Custom Agent
+```go
+registry.PublishAgent("myorg/custom-agent", AgentPackage{
+    Version: "1.0.0",
+    Manifest: AgentManifest{
+        Name: "Custom Specialist",
+        Tools: []string{
+            "jira@^2.0.0",
+            "github@^1.0.0",
+        },
+        SetupSteps: []SetupStep{
+            {
+                Type: "api_key",
+                Name: "JIRA_TOKEN",
+                Description: "Jira API token",
+            },
+        },
     },
 })
 ```
 
-### 4. Monitoring and Analytics
-- Performance metrics
-- Usage patterns
-- Error rates
-- Cost tracking
+### 3. Slack Integration
+```go
+slack.Command("/agent", func(cmd *slack.Command) {
+    switch cmd.Action {
+    case "add":
+        agent := registry.FindLatest(cmd.Args.Role)
+        space.AddAgent(agent, cmd.Args.Name)
+        
+    case "search":
+        results := registry.Search(cmd.Args.Query)
+        slack.Reply(formatResults(results))
+    }
+})
+```
 
-## Use Cases
+## Next Steps
 
-1. **Product Development**
-   ```go
-   productTeam := registry.Team(
-       registry.Load("product/manager@2.0.0"),
-       registry.Load("design/ux@1.5.0"),
-       registry.Load("engineering/architect@3.1.0"),
-   )
-   ```
+1. **Registry Service**
+   - [ ] Package format specification
+   - [ ] Version management system
+   - [ ] Search and discovery API
+   - [ ] Security scanning pipeline
 
-2. **Research and Analysis**
-   ```go
-   researchTeam := registry.Team(
-       registry.Load("research/market-analyst@2.1.0"),
-       registry.Load("research/data-scientist@1.0.0"),
-       registry.Load("research/competitor-analyst@3.2.1"),
-   )
-   ```
+2. **Platform Service**
+   - [ ] Space management API
+   - [ ] Channel integration framework
+   - [ ] Configuration management
+   - [ ] Monitoring and logging
 
-3. **Content Creation**
-   ```go
-   contentTeam := registry.Team(
-       registry.Load("content/strategist@1.0.0"),
-       registry.Load("content/writer@2.3.0"),
-       registry.Load("content/editor@1.1.0"),
-   )
-   ```
+3. **Tool Integration**
+   - [ ] MCP integration spec
+   - [ ] Tool dependency resolver
+   - [ ] Setup automation framework
+   - [ ] Version compatibility checker
 
-## Future Directions
-
-### 1. Agent Marketplace
-- Commercial and open-source agents
-- Subscription models
-- Usage-based pricing
-- Revenue sharing
-
-### 2. Advanced Composition
-- Visual workflow builder
-- Template library
-- Custom routing logic
-- State management
-
-### 3. Enterprise Features
-- Private registries
-- Compliance tracking
-- Audit logging
-- Role-based access control
-
-### 4. Community Features
-- Agent templates
-- Best practices
-- Community contributions
-- Training resources
+4. **Channel Support**
+   - [ ] Slack app implementation
+   - [ ] Discord bot framework
+   - [ ] Terminal UI client
+   - [ ] HTTP/WebSocket API
 
 ## Getting Started
 
-```go
-// Install the registry client
-go get github.com/fastagent/registry
+```bash
+# Install the CLI
+go install github.com/fastagent/agentctl@latest
 
-// Initialize a new agent project
-registry init my-awesome-agent
+# Initialize a new agent
+agentctl init my-agent
 
-// Test your agent
-registry test
+# Test locally
+agentctl test
 
-// Publish to the registry
-registry publish --version 1.0.0
+# Publish to registry
+agentctl publish --version 1.0.0
 ```
 
 ## Contributing
 
-The FastAgent Registry is an open ecosystem. We encourage:
+The Agent Registry is an open ecosystem. We encourage:
 - New agent contributions
 - Tool integrations
-- Workflow templates
+- Channel adapters
 - Documentation improvements
 
-## Roadmap
-
-1. **Phase 1: Core Registry**
-   - Basic agent publishing
-   - Version management
-   - Simple composition
-
-2. **Phase 2: Tool Integration**
-   - Standard tool interfaces
-   - Security framework
-   - API management
-
-3. **Phase 3: Marketplace**
-   - Payment integration
-   - Usage tracking
-   - Rating system
-
-4. **Phase 4: Enterprise**
-   - Private registries
-   - Advanced security
-   - Custom integrations
-
-## Get Involved
-
+## Resources
 - GitHub: [github.com/fastagent/registry](https://github.com/fastagent/registry)
 - Documentation: [docs.fastagent.dev](https://docs.fastagent.dev)
-- Discord: [discord.gg/fastagent](https://discord.gg/fastagent)
-- Twitter: [@FastAgentDev](https://twitter.com/FastAgentDev) 
+- Discord: [discord.gg/fastagent](https://discord.gg/fastagent) 
