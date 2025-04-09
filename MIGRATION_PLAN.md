@@ -53,6 +53,75 @@
 ## Implementation Plan
 
 ### Phase 4: Agent Framework (In Progress)
+
+### Priority 1: Tool System Foundation
+- [ ] Core Tool Abstraction
+  - [ ] Tool interface definition
+  - [ ] Tool registry and discovery
+  - [ ] Tool execution framework
+  - [ ] Tool result handling
+  - [ ] Tool error management
+
+- [ ] Local Tools Implementation
+  - [ ] Filesystem tools (read/write/list)
+  - [ ] Calculator tools
+  - [ ] Search tools
+  - [ ] System info tools
+  - [ ] Human input tool
+
+- [ ] Agent Tool Integration
+  - [ ] Tool-aware message handling
+  - [ ] Tool call parsing
+  - [ ] Tool response formatting
+  - [ ] Tool error recovery
+  - [ ] Tool access management
+
+- [ ] Example Implementations
+  - [ ] File browser demo
+  - [ ] Calculator agent demo
+  - [ ] Search agent demo
+  - [ ] Multi-tool chat demo
+
+### Priority 2: Remote Tool Integration
+- [ ] MCP Protocol Support
+  - [ ] Tool discovery from MCP servers
+  - [ ] Tool namespacing (server.tool)
+  - [ ] Connection management
+  - [ ] Remote execution handling
+
+- [ ] Tool Composition
+  - [ ] Tool sharing between agents
+  - [ ] Team tool management
+  - [ ] Tool access control
+  - [ ] Tool dependency resolution
+
+### Priority 3: Advanced Features
+- [ ] Tool Marketplace Support
+  - [ ] Tool publishing
+  - [ ] Tool versioning
+  - [ ] Tool discovery
+  - [ ] Tool monetization
+
+- [ ] Hardware Integration
+  - [ ] Hardware tool abstraction
+  - [ ] Device discovery
+  - [ ] Hardware access control
+  - [ ] Hardware monitoring
+
+### Priority 4: Enterprise Features
+- [ ] Tool Governance
+  - [ ] Tool usage monitoring
+  - [ ] Tool access auditing
+  - [ ] Tool performance metrics
+  - [ ] Tool cost tracking
+
+- [ ] Team Management
+  - [ ] Tool access policies
+  - [ ] Team tool quotas
+  - [ ] Tool usage analytics
+  - [ ] Tool cost allocation
+
+### Priority 5: Agent Framework (In Progress)
 Goal: Implement agent application framework and composition
 
 Priority 1: Enhanced Agent Core
