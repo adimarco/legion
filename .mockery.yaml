@@ -4,8 +4,10 @@ dir: "llm/mocks"
 mockname: "{{.InterfaceName}}"
 outpkg: "mocks"
 inpackage: false
-testonly: true
+disable-version-string: true
+issue-845-fix: true
+resolve-type-alias: false
 packages:
   github.com/adimarco/hive/llm:
     interfaces:
-      AugmentedLLM: 
+      AugmentedLLM: {} 

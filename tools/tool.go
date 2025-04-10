@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -12,17 +11,12 @@ import (
 type Tool struct {
 	// Core metadata
 	Name        string   `json:"name"`
-	Version     string   `json:"version"`
 	Description string   `json:"description"`
 	Category    string   `json:"category"`
 	Tags        []string `json:"tags"`
 
 	// Schema and validation
 	Schema json.RawMessage `json:"schema"` // JSON Schema for input validation
-
-	// Dependencies
-	Requires []string        `json:"requires"` // Required tools
-	Config   json.RawMessage `json:"config"`   // Tool configuration
 
 	// Execution
 	Handler ToolHandler `json:"-"`    // Not serialized
@@ -86,24 +80,14 @@ func NewSimpleToolRegistry() *SimpleToolRegistry {
 
 // Register implements ToolRegistry.Register
 func (r *SimpleToolRegistry) Register(tool Tool) error {
-	key := fmt.Sprintf("%s@%s", tool.Name, tool.Version)
+	key := tool.Name
 
 	// Validate the tool
 	if tool.Name == "" {
 		return fmt.Errorf("tool name is required")
 	}
-	if tool.Version == "" {
-		return fmt.Errorf("tool version is required")
-	}
 	if tool.Handler == nil {
 		return fmt.Errorf("tool handler is required")
-	}
-
-	// Check dependencies first, outside the lock
-	for _, dep := range tool.Requires {
-		if _, err := r.Get(dep); err != nil {
-			return fmt.Errorf("missing dependency: %s", dep)
-		}
 	}
 
 	// Initialize the tool if needed
@@ -118,7 +102,7 @@ func (r *SimpleToolRegistry) Register(tool Tool) error {
 
 	// Check for duplicate registration
 	if _, exists := r.tools[key]; exists {
-		return fmt.Errorf("tool %q version %q already registered", tool.Name, tool.Version)
+		return fmt.Errorf("tool %q already registered", tool.Name)
 	}
 
 	r.tools[key] = tool
@@ -151,24 +135,6 @@ func (r *SimpleToolRegistry) Get(name string) (Tool, error) {
 	defer r.mu.RUnlock()
 
 	// Parse name and version
-	if !strings.Contains(name, "@") {
-		// Find latest version
-		var latest Tool
-		var latestVer string
-		for key, tool := range r.tools {
-			if strings.HasPrefix(key, name+"@") {
-				if latestVer == "" || tool.Version > latestVer {
-					latest = tool
-					latestVer = tool.Version
-				}
-			}
-		}
-		if latestVer != "" {
-			return latest, nil
-		}
-		return Tool{}, fmt.Errorf("tool %q not found", name)
-	}
-
 	tool, exists := r.tools[name]
 	if !exists {
 		return Tool{}, fmt.Errorf("tool %q not found", name)
@@ -214,11 +180,6 @@ func (r *SimpleToolRegistry) Call(ctx context.Context, name string, args map[str
 		return ToolResult{}, fmt.Errorf("invalid arguments: %w", err)
 	}
 
-	// Check dependencies
-	if err := r.checkDependencies(ctx, tool); err != nil {
-		return ToolResult{}, fmt.Errorf("dependency check failed: %w", err)
-	}
-
 	// Execute the tool
 	result, err := tool.Handler(ctx, args)
 	if err != nil {
@@ -240,11 +201,6 @@ func (r *SimpleToolRegistry) Stream(ctx context.Context, name string, args map[s
 	// Validate arguments
 	if err := ValidateToolArgs(&tool, args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
-	}
-
-	// Check dependencies
-	if err := r.checkDependencies(ctx, tool); err != nil {
-		return nil, fmt.Errorf("dependency check failed: %w", err)
 	}
 
 	// Start streaming in a goroutine
@@ -269,16 +225,6 @@ func (r *SimpleToolRegistry) Stream(ctx context.Context, name string, args map[s
 	}()
 
 	return resultChan, nil
-}
-
-// checkDependencies verifies that all required tools are available
-func (r *SimpleToolRegistry) checkDependencies(ctx context.Context, tool Tool) error {
-	for _, dep := range tool.Requires {
-		if _, err := r.Get(dep); err != nil {
-			return fmt.Errorf("required tool %q not found", dep)
-		}
-	}
-	return nil
 }
 
 // matchesQuery checks if a tool matches the search query
@@ -343,16 +289,9 @@ type ToolBuilder struct {
 func New(name string) *ToolBuilder {
 	return &ToolBuilder{
 		tool: Tool{
-			Name:    name,
-			Version: "1.0.0", // Default version
+			Name: name,
 		},
 	}
-}
-
-// WithVersion sets the tool version
-func (b *ToolBuilder) WithVersion(version string) *ToolBuilder {
-	b.tool.Version = version
-	return b
 }
 
 // WithDescription sets the tool description
@@ -399,5 +338,80 @@ func (b *ToolBuilder) Build() Tool {
 // Register registers the tool with the default registry
 func Register(tool Tool) error {
 	registry := NewSimpleToolRegistry()
+	return registry.Register(tool)
+}
+
+// RegisterFunctionTool creates and registers a tool from a simple function
+// It examines the function signature to generate an appropriate schema
+func RegisterFunctionTool(registry ToolRegistry, name, description string, handler interface{}) error {
+	// Convert the handler to a proper ToolHandler function
+	toolHandler := func(ctx context.Context, args map[string]interface{}) (ToolResult, error) {
+		// Handle different function signatures
+		switch h := handler.(type) {
+		case func() string:
+			// Simple no-arg function
+			return NewToolResult(h()), nil
+
+		case func(string) string:
+			// Function that takes a single string argument
+			input, _ := args["input"].(string)
+			return NewToolResult(h(input)), nil
+
+		case func(map[string]interface{}) string:
+			// Function that takes a map of arguments
+			return NewToolResult(h(args)), nil
+
+		case func(context.Context, map[string]interface{}) (string, error):
+			// Full handler with context and error
+			result, err := h(ctx, args)
+			if err != nil {
+				return NewErrorResult(err), nil
+			}
+			return NewToolResult(result), nil
+
+		case func() (string, error):
+			// No-arg function that can error
+			result, err := h()
+			if err != nil {
+				return NewErrorResult(err), nil
+			}
+			return NewToolResult(result), nil
+
+		default:
+			// Unsupported handler type
+			return ToolResult{}, fmt.Errorf("unsupported handler type: %T", handler)
+		}
+	}
+
+	// Generate schema based on function signature
+	var schema json.RawMessage
+	switch handler.(type) {
+	case func() string, func() (string, error):
+		// No parameters
+		schema = json.RawMessage(`{"type":"object","properties":{},"required":[]}`)
+
+	case func(string) string:
+		// Single string input
+		schema = json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"input": {"type": "string", "description": "Input text"}
+			},
+			"required": ["input"]
+		}`)
+
+	default:
+		// Default to accepting any object
+		schema = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":true}`)
+	}
+
+	// Create and register the tool
+	tool := Tool{
+		Name:        name,
+		Description: description,
+		Schema:      schema,
+		Handler:     toolHandler,
+	}
+
 	return registry.Register(tool)
 }

@@ -13,6 +13,18 @@ import (
 	"sync"
 )
 
+// Memory manages conversation history and prompt storage
+type Memory interface {
+	// Add adds a message to history
+	Add(msg Message, isPrompt bool) error
+
+	// Get retrieves messages from memory
+	Get(includeHistory bool) ([]Message, error)
+
+	// Clear clears the specified message types
+	Clear(clearPrompts bool) error
+}
+
 // SimpleMemory provides a basic thread-safe in-memory implementation
 type SimpleMemory struct {
 	mu      sync.RWMutex

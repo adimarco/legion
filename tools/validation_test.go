@@ -6,12 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestTool implements ToolValidator for testing
 type TestTool struct {
-	name       string
 	argsSchema json.RawMessage
 }
 
@@ -70,166 +68,6 @@ func TestValidateArgs(t *testing.T) {
 	}
 }
 
-func TestValidateToolConfig(t *testing.T) {
-	tests := []struct {
-		name    string
-		tool    *Tool
-		wantErr bool
-	}{
-		{
-			name: "valid config",
-			tool: &Tool{
-				Schema: json.RawMessage(`{
-					"config": {
-						"type": "object",
-						"properties": {
-							"prefix": {"type": "string"}
-						},
-						"required": ["prefix"]
-					}
-				}`),
-				Config: json.RawMessage(`{
-					"prefix": "test:"
-				}`),
-			},
-			wantErr: false,
-		},
-		{
-			name: "invalid config type",
-			tool: &Tool{
-				Schema: json.RawMessage(`{
-					"config": {
-						"type": "object",
-						"properties": {
-							"prefix": {"type": "string"}
-						},
-						"required": ["prefix"]
-					}
-				}`),
-				Config: json.RawMessage(`{
-					"prefix": 123
-				}`),
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing required config",
-			tool: &Tool{
-				Schema: json.RawMessage(`{
-					"config": {
-						"type": "object",
-						"properties": {
-							"prefix": {"type": "string"}
-						},
-						"required": ["prefix"]
-					}
-				}`),
-				Config: json.RawMessage(`{}`),
-			},
-			wantErr: true,
-		},
-		{
-			name: "no config schema",
-			tool: &Tool{
-				Schema: json.RawMessage(`{}`),
-				Config: json.RawMessage(`{
-					"prefix": "test:"
-				}`),
-			},
-			wantErr: true,
-		},
-		{
-			name: "empty config",
-			tool: &Tool{
-				Schema: json.RawMessage(`{}`),
-				Config: json.RawMessage(""),
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateToolConfig(tt.tool)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateToolConfig() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestValidateToolDependencies(t *testing.T) {
-	registry := NewSimpleToolRegistry()
-
-	// Create a base tool
-	baseTool := Tool{
-		Name:        "base",
-		Version:     "1.0.0",
-		Description: "Base tool",
-		Category:    "test",
-		Tags:        []string{"test"},
-		Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
-	}
-
-	// Register base tool
-	err := registry.Register(baseTool)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name    string
-		tool    *Tool
-		wantErr bool
-	}{
-		{
-			name: "valid dependencies",
-			tool: &Tool{
-				Name:        "dependent",
-				Version:     "1.0.0",
-				Description: "Dependent tool",
-				Category:    "test",
-				Tags:        []string{"test"},
-				Requires:    []string{"base@1.0.0"},
-				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing dependency",
-			tool: &Tool{
-				Name:        "dependent",
-				Version:     "1.0.0",
-				Description: "Dependent tool",
-				Category:    "test",
-				Tags:        []string{"test"},
-				Requires:    []string{"nonexistent@1.0.0"},
-				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
-			},
-			wantErr: true,
-		},
-		{
-			name: "no dependencies",
-			tool: &Tool{
-				Name:        "independent",
-				Version:     "1.0.0",
-				Description: "Independent tool",
-				Category:    "test",
-				Tags:        []string{"test"},
-				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateToolDependencies(tt.tool, registry)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateToolDependencies() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestValidateToolMetadata(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -240,7 +78,6 @@ func TestValidateToolMetadata(t *testing.T) {
 			name: "valid metadata",
 			tool: &Tool{
 				Name:        "test",
-				Version:     "1.0.0",
 				Description: "Test tool",
 				Category:    "test",
 				Tags:        []string{"test"},
@@ -251,18 +88,6 @@ func TestValidateToolMetadata(t *testing.T) {
 		{
 			name: "missing name",
 			tool: &Tool{
-				Version:     "1.0.0",
-				Description: "Test tool",
-				Category:    "test",
-				Tags:        []string{"test"},
-				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing version",
-			tool: &Tool{
-				Name:        "test",
 				Description: "Test tool",
 				Category:    "test",
 				Tags:        []string{"test"},
@@ -274,7 +99,6 @@ func TestValidateToolMetadata(t *testing.T) {
 			name: "missing description",
 			tool: &Tool{
 				Name:     "test",
-				Version:  "1.0.0",
 				Category: "test",
 				Tags:     []string{"test"},
 				Handler:  func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
@@ -285,7 +109,6 @@ func TestValidateToolMetadata(t *testing.T) {
 			name: "missing category",
 			tool: &Tool{
 				Name:        "test",
-				Version:     "1.0.0",
 				Description: "Test tool",
 				Tags:        []string{"test"},
 				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
@@ -296,7 +119,6 @@ func TestValidateToolMetadata(t *testing.T) {
 			name: "missing tags",
 			tool: &Tool{
 				Name:        "test",
-				Version:     "1.0.0",
 				Description: "Test tool",
 				Category:    "test",
 				Handler:     func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
@@ -321,7 +143,6 @@ func TestValidateTool(t *testing.T) {
 	// Create a valid tool
 	validTool := Tool{
 		Name:        "test",
-		Version:     "1.0.0",
 		Description: "Test tool",
 		Category:    "test",
 		Tags:        []string{"test"},
@@ -330,17 +151,7 @@ func TestValidateTool(t *testing.T) {
 			"properties": {
 				"input": {"type": "string"}
 			},
-			"required": ["input"],
-			"config": {
-				"type": "object",
-				"properties": {
-					"prefix": {"type": "string"}
-				},
-				"required": ["prefix"]
-			}
-		}`),
-		Config: json.RawMessage(`{
-			"prefix": "test:"
+			"required": ["input"]
 		}`),
 		Handler: func(ctx context.Context, args map[string]any) (ToolResult, error) { return ToolResult{}, nil },
 	}
@@ -355,13 +166,6 @@ func TestValidateTool(t *testing.T) {
 	err = ValidateTool(&invalidMetadata, registry)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid metadata")
-
-	// Test invalid config
-	invalidConfig := validTool
-	invalidConfig.Config = json.RawMessage(`{"prefix": 123}`)
-	err = ValidateTool(&invalidConfig, registry)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid configuration")
 
 	// Test missing handler
 	invalidHandler := validTool

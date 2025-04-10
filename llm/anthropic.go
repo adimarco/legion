@@ -100,9 +100,9 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 
 	// Create message request
 	req := anthropic.MessageNewParams{
-		Model:     "claude-3-haiku-20240307",
+		Model:     reqParams.Model,
 		Messages:  messages,
-		MaxTokens: 1024,
+		MaxTokens: int64(reqParams.MaxTokens),
 	}
 
 	if reqParams.SystemPrompt != "" {
@@ -118,13 +118,23 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 
 	// Add tools if specified
 	if len(reqParams.Tools) > 0 {
-		var toolParams []anthropic.ToolParam
+		// Track unique tools by their name
+		uniqueToolParams := make(map[string]anthropic.ToolParam)
+
 		for _, toolName := range reqParams.Tools {
 			tool, err := l.tools.Get(toolName)
 			if err != nil {
 				l.logger.Error(ctx, "Tool not found", logging.WithData(map[string]interface{}{
 					"tool":  toolName,
 					"error": err.Error(),
+				}))
+				continue
+			}
+
+			// Skip if we already added this tool name
+			if _, exists := uniqueToolParams[tool.Name]; exists {
+				l.logger.Info(ctx, "Skipping duplicate tool", logging.WithData(map[string]interface{}{
+					"tool": tool.Name,
 				}))
 				continue
 			}
@@ -139,9 +149,9 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 				continue
 			}
 
-			// Create tool parameter
-			toolParam := anthropic.ToolParam{
-				Name:        tool.Name,
+			// Create tool parameter using just the tool name (no version)
+			uniqueToolParams[tool.Name] = anthropic.ToolParam{
+				Name:        tool.Name, // Use just the name without version
 				Description: anthropic.String(tool.Description),
 				InputSchema: anthropic.ToolInputSchemaParam{
 					Type:       "object",
@@ -149,27 +159,40 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 				},
 			}
 
-			toolParams = append(toolParams, toolParam)
-
 			l.logger.Info(ctx, "Added tool", logging.WithData(map[string]interface{}{
-				"tool":   toolName,
+				"tool":   tool.Name,
 				"schema": tool.Schema,
 			}))
 		}
 
-		// Convert to union type and add to request
-		tools := make([]anthropic.ToolUnionParam, len(toolParams))
-		for i, param := range toolParams {
-			tools[i] = anthropic.ToolUnionParam{OfTool: &param}
+		// Convert the unique tools to the format Anthropic expects
+		toolParams := make([]anthropic.ToolParam, 0, len(uniqueToolParams))
+		for _, param := range uniqueToolParams {
+			toolParams = append(toolParams, param)
 		}
-		req.Tools = tools
 
-		l.logger.Info(ctx, "Request with tools", logging.WithData(map[string]interface{}{
-			"tools": tools,
-		}))
+		if len(toolParams) > 0 {
+			// Convert to union type and add to request
+			tools := make([]anthropic.ToolUnionParam, len(toolParams))
+			for i, param := range toolParams {
+				tools[i] = anthropic.ToolUnionParam{OfTool: &param}
+			}
+			req.Tools = tools
+
+			l.logger.Info(ctx, "Request with tools", logging.WithData(map[string]interface{}{
+				"tools_count": len(tools),
+				"tool_names": func() []string {
+					names := make([]string, len(toolParams))
+					for i, p := range toolParams {
+						names[i] = p.Name
+					}
+					return names
+				}(),
+			}))
+		}
 	}
 
-	// Make API call
+	// Make initial API call
 	resp, err := l.client.Messages.New(ctx, req)
 	if err != nil {
 		l.logger.Error(ctx, "Anthropic API error", logging.WithData(map[string]interface{}{
@@ -186,8 +209,22 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 	var finalResponse string
 	messages = append(messages, resp.ToParam())
 
-	for {
+	// Tool calling loop - continue until no more tool calls or max iterations reached
+	iterCount := 0
+	maxIterations := reqParams.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 10 // Default max iterations if not specified
+	}
+
+	for iterCount < maxIterations {
+		iterCount++
+		l.logger.Info(ctx, "Tool iteration", logging.WithData(map[string]interface{}{
+			"iteration": iterCount,
+			"max":       maxIterations,
+		}))
+
 		var toolResults []anthropic.ContentBlockParamUnion
+		var hasToolCalls bool
 
 		// Process each block in the response
 		for _, block := range resp.Content {
@@ -195,6 +232,7 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 			case anthropic.TextBlock:
 				finalResponse = variant.Text
 			case anthropic.ToolUseBlock:
+				hasToolCalls = true
 				l.logger.Info(ctx, "Tool use request", logging.WithData(map[string]interface{}{
 					"tool":  variant.Name,
 					"input": variant.JSON.Input.Raw(),
@@ -203,20 +241,36 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 				// Parse the input
 				var args map[string]any
 				if err := json.Unmarshal([]byte(variant.JSON.Input.Raw()), &args); err != nil {
-					l.logger.Error(ctx, "Failed to parse tool input", logging.WithData(map[string]interface{}{
+					errMsg := fmt.Sprintf("Failed to parse tool input: %s", err.Error())
+					l.logger.Error(ctx, errMsg, logging.WithData(map[string]interface{}{
 						"tool":  variant.Name,
 						"error": err.Error(),
 					}))
+
+					// Add error result so LLM can handle it
+					toolResults = append(toolResults, anthropic.NewToolResultBlock(
+						variant.ID,
+						errMsg,
+						true,
+					))
 					continue
 				}
 
-				// Call the tool
+				// Execute the tool using the name as is (no version info)
 				result, err := l.tools.Call(ctx, variant.Name, args)
 				if err != nil {
-					l.logger.Error(ctx, "Tool call failed", logging.WithData(map[string]interface{}{
+					errMsg := fmt.Sprintf("Tool execution failed: %s", err.Error())
+					l.logger.Error(ctx, errMsg, logging.WithData(map[string]interface{}{
 						"tool":  variant.Name,
 						"error": err.Error(),
 					}))
+
+					// Add error result so LLM can handle it
+					toolResults = append(toolResults, anthropic.NewToolResultBlock(
+						variant.ID,
+						errMsg,
+						true,
+					))
 					continue
 				}
 
@@ -225,20 +279,29 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 					"result": result,
 				}))
 
-				// Add tool result
-				toolResults = append(toolResults, anthropic.NewToolResultBlock(variant.ID, result.Content, result.IsError))
+				// Add successful tool result
+				toolResults = append(toolResults, anthropic.NewToolResultBlock(
+					variant.ID,
+					result.Content,
+					result.IsError,
+				))
 			}
 		}
 
-		// If no tool calls, break the loop
-		if len(toolResults) == 0 {
+		// If no tool calls, we're done
+		if !hasToolCalls || len(toolResults) == 0 {
 			break
 		}
 
 		// Add tool results and make another API call
+		l.logger.Info(ctx, "Sending tool results back to LLM", logging.WithData(map[string]interface{}{
+			"results_count": len(toolResults),
+		}))
+
 		messages = append(messages, anthropic.NewUserMessage(toolResults...))
 		req.Messages = messages
 
+		// Make follow-up API call with tool results
 		resp, err = l.client.Messages.New(ctx, req)
 		if err != nil {
 			l.logger.Error(ctx, "Anthropic API error after tool calls", logging.WithData(map[string]interface{}{
@@ -252,8 +315,23 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 		}))
 
 		messages = append(messages, resp.ToParam())
+
+		// Update final response from the latest response
+		for _, block := range resp.Content {
+			if textBlock, ok := block.AsAny().(anthropic.TextBlock); ok {
+				finalResponse = textBlock.Text
+			}
+		}
 	}
 
+	// Check if we hit the max iterations limit
+	if iterCount >= maxIterations {
+		l.logger.Error(ctx, "Reached maximum tool call iterations", logging.WithData(map[string]interface{}{
+			"max_iterations": maxIterations,
+		}))
+	}
+
+	// Build the final response message
 	response := Message{
 		Type:    MessageTypeAssistant,
 		Content: finalResponse,
@@ -261,14 +339,15 @@ func (l *AnthropicLLM) Generate(ctx context.Context, msg Message, params *Reques
 	}
 
 	// Store response in history if enabled
-	if params != nil && params.UseHistory {
+	if reqParams.UseHistory {
 		if err := l.memory.Add(response, false); err != nil {
 			return Message{}, fmt.Errorf("failed to add response to history: %w", err)
 		}
 	}
 
-	l.logger.Info(ctx, "Generated response", logging.WithData(map[string]interface{}{
-		"content": response.Content,
+	l.logger.Info(ctx, "Generated final response", logging.WithData(map[string]interface{}{
+		"content":    response.Content,
+		"iterations": iterCount,
 	}))
 
 	return response, nil
@@ -319,8 +398,33 @@ func (l *AnthropicLLM) Cleanup() error {
 }
 
 // Tools returns the tool registry for this LLM
-func (l *AnthropicLLM) Tools() *tools.SimpleToolRegistry {
+func (l *AnthropicLLM) Tools() tools.ToolRegistry {
 	return l.tools
+}
+
+// ExecuteTool executes a specific tool directly
+func (l *AnthropicLLM) ExecuteTool(ctx context.Context, toolName string, args map[string]any) (tools.ToolResult, error) {
+	l.logger.Info(ctx, "Executing tool directly", logging.WithData(map[string]interface{}{
+		"tool": toolName,
+		"args": args,
+	}))
+
+	// Delegate to the tool registry
+	result, err := l.tools.Call(ctx, toolName, args)
+	if err != nil {
+		l.logger.Error(ctx, "Tool execution failed", logging.WithData(map[string]interface{}{
+			"tool":  toolName,
+			"error": err.Error(),
+		}))
+		return tools.ToolResult{}, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
+	}
+
+	l.logger.Info(ctx, "Tool execution succeeded", logging.WithData(map[string]interface{}{
+		"tool":   toolName,
+		"result": result,
+	}))
+
+	return result, nil
 }
 
 // Helper functions

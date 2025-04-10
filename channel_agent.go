@@ -89,12 +89,17 @@ func (ca *ChannelAgent) processMessages(ctx context.Context, ra *RunningAgent) {
 
 				response, err := ra.Send(message)
 				if err != nil {
+					// Construct a meaningful error message
+					errMsg := fmt.Errorf("failed to process message: %w", err)
+
 					// Try to send error, don't block if channel is full
 					select {
-					case ca.errors <- fmt.Errorf("failed to process message: %w", err):
+					case ca.errors <- errMsg:
+					case <-time.After(100 * time.Millisecond):
+						// Error channel full or slow, log locally
+						fmt.Printf("Error sending to channel: %v\n", errMsg)
 					case <-ctx.Done():
-					default:
-						// Error channel full, log or handle appropriately
+						return
 					}
 					return
 				}
@@ -109,19 +114,22 @@ func (ca *ChannelAgent) processMessages(ctx context.Context, ra *RunningAgent) {
 					ca.mu.RUnlock()
 
 					if !closed {
+						// Attempt to send response with timeout
 						select {
 						case ca.output <- response:
 							// Response sent successfully
+						case <-time.After(500 * time.Millisecond):
+							// Output channel full or slow, send error
+							select {
+							case ca.errors <- fmt.Errorf("output channel full or slow"):
+							case <-time.After(100 * time.Millisecond):
+								// Error channel also full or slow, log locally
+								fmt.Printf("Error: output channel full or slow\n")
+							case <-ctx.Done():
+								return
+							}
 						case <-ctx.Done():
 							return
-						default:
-							// Output channel full, send error
-							select {
-							case ca.errors <- fmt.Errorf("output channel full"):
-							case <-ctx.Done():
-							default:
-								// Error channel full, log or handle appropriately
-							}
 						}
 					}
 				}

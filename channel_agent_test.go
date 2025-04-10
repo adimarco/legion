@@ -1,4 +1,4 @@
-//go:generate mockery --name AugmentedLLM --dir ../internal/llm --output ./mocks --outpkg mocks --with-expecter --testonly
+//go:generate mockery --name AugmentedLLM --srcpkg github.com/adimarco/hive/llm --output llm/mocks --outpkg mocks --with-expecter --disable-version-string
 package hive
 
 import (
@@ -15,6 +15,7 @@ import (
 
 	"github.com/adimarco/hive/llm"
 	"github.com/adimarco/hive/llm/mocks"
+	"github.com/adimarco/hive/tools"
 )
 
 // setupMockLLM creates and configures a mock LLM for testing
@@ -50,6 +51,20 @@ func setupMockLLM(t *testing.T, errorOnMessage string, delay time.Duration) *moc
 			return "", errors.New("mock error")
 		}
 		return "mock response for: " + content, nil
+	}).Maybe()
+
+	// ExecuteTool method
+	mockLLM.EXPECT().ExecuteTool(mock.Anything, mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, toolName string, args map[string]any) (tools.ToolResult, error) {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+		if toolName == errorOnMessage {
+			return tools.ToolResult{}, errors.New("mock tool error")
+		}
+		return tools.ToolResult{
+			Content: fmt.Sprintf("mock tool response for: %s", toolName),
+			IsError: false,
+		}, nil
 	}).Maybe()
 
 	return mockLLM

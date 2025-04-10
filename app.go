@@ -1,7 +1,6 @@
 package hive
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/adimarco/hive/llm"
@@ -22,10 +21,13 @@ func NewApp(name string) *App {
 		// In the future, we can return error and let caller handle it
 		panic(fmt.Sprintf("failed to create LLM: %v", err))
 	}
-	return &App{
+
+	app := &App{
 		llm:    llm,
 		agents: make(map[string]*Agent),
 	}
+
+	return app
 }
 
 // Agent creates a new agent with the given instruction
@@ -34,8 +36,18 @@ func (a *App) Agent(instruction string) *Agent {
 
 	// Add all available tools automatically
 	tools := a.llm.Tools().List()
+
+	// Track which tools we've already added to avoid duplicates
+	addedTools := make(map[string]bool)
+
 	for _, tool := range tools {
-		agent.WithTools(fmt.Sprintf("%s@%s", tool.Name, tool.Version))
+		// Skip tools we've already added
+		if addedTools[tool.Name] {
+			continue
+		}
+
+		agent.WithTools(tool.Name)
+		addedTools[tool.Name] = true
 	}
 
 	a.agents[agent.name] = agent
@@ -44,23 +56,9 @@ func (a *App) Agent(instruction string) *Agent {
 
 // Tool creates and registers a new tool with a simple function handler
 func (a *App) Tool(name string, handler interface{}) error {
-	// Convert the handler to a proper tool handler function
-	toolHandler := func(ctx context.Context, args map[string]any) (string, error) {
-		// For now, we'll just handle simple functions that return a string
-		// Later we can add support for more function signatures
-		if h, ok := handler.(func() string); ok {
-			result := tools.NewToolResult(h())
-			return result.Content, nil
-		}
-		return "", fmt.Errorf("unsupported handler type")
-	}
-
-	// Create and register the tool
-	tool := Tool(name, toolHandler).
-		WithDescription(fmt.Sprintf("Tool '%s' that returns a result", name)).
-		Build()
-
-	return a.llm.Tools().Register(tool)
+	// Use the new RegisterFunctionTool helper
+	description := fmt.Sprintf("Tool '%s' provided by the application", name)
+	return tools.RegisterFunctionTool(a.llm.Tools(), name, description, handler)
 }
 
 // Close cleans up app resources

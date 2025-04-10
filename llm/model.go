@@ -94,20 +94,6 @@ func (m *Message) GetAllText() string {
 	return strings.Join(texts, "\n")
 }
 
-// ToolCall represents a request to call a tool.
-// The design supports both synchronous and asynchronous tool execution,
-// with the Response field allowing for result storage.
-type ToolCall struct {
-	// ID uniquely identifies this tool call
-	ID string `json:"id"`
-	// Name identifies which tool to call
-	Name string `json:"name"`
-	// Args holds the parameters for the tool call
-	Args map[string]any `json:"args"`
-	// Response stores the result of the tool call
-	Response string `json:"response,omitempty"`
-}
-
 // RequestParams holds parameters for an LLM request
 type RequestParams struct {
 	SystemPrompt  string         // System prompt to use
@@ -141,6 +127,10 @@ type AugmentedLLM interface {
 	// CallTool executes a tool call and returns the result
 	CallTool(ctx context.Context, call ToolCall) (string, error)
 
+	// ExecuteTool executes a specific tool with the given name and arguments
+	// This is used for direct tool execution without going through the LLM
+	ExecuteTool(ctx context.Context, toolName string, args map[string]any) (tools.ToolResult, error)
+
 	// Name returns the identifier for this LLM instance
 	Name() string
 
@@ -151,19 +141,7 @@ type AugmentedLLM interface {
 	Cleanup() error
 
 	// Tools returns the tool registry for this LLM
-	Tools() *tools.SimpleToolRegistry
-}
-
-// Memory manages conversation history and prompt storage
-type Memory interface {
-	// Add adds a message to history
-	Add(msg Message, isPrompt bool) error
-
-	// Get retrieves messages from memory
-	Get(includeHistory bool) ([]Message, error)
-
-	// Clear clears the specified message types
-	Clear(clearPrompts bool) error
+	Tools() tools.ToolRegistry
 }
 
 // Provider represents an LLM provider (e.g., Anthropic, OpenAI).

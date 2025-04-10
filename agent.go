@@ -150,25 +150,73 @@ func (ra *RunningAgent) Send(msg string) (string, error) {
 	default:
 	}
 
+	// Ensure we have params properly initialized
+	params := ra.buildRequestParams()
+
 	message := llm.Message{
 		Type:    llm.MessageTypeUser,
 		Content: msg,
 	}
 
-	params := &llm.RequestParams{
-		SystemPrompt: ra.agent.instruction,
-		Model:        ra.agent.model,
-		UseHistory:   ra.agent.useHistory,
-		Tools:        ra.agent.params.Tools,
-		Config:       ra.agent.params.Config,
-	}
-
+	// Generate response using the LLM
 	response, err := ra.agent.llm.Generate(ra.ctx, message, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to get LLM completion: %w", err)
 	}
 
+	// Check for and execute any tool calls
+	if len(response.ToolCalls) > 0 {
+		// If this were a more complex implementation, we might handle
+		// tool calls in a loop here. However, the AnthropicLLM
+		// implementation already handles the tool loop internally.
+
+		// Just log that tools were used for visibility
+		fmt.Fprintf(ra.agent.output, "Tools were used to generate this response.\n")
+	}
+
 	return response.Content, nil
+}
+
+// buildRequestParams creates a properly initialized RequestParams
+// using the agent's configuration
+func (ra *RunningAgent) buildRequestParams() *llm.RequestParams {
+	params := &llm.RequestParams{
+		SystemPrompt: ra.agent.instruction,
+		Model:        ra.agent.model,
+		UseHistory:   ra.agent.useHistory,
+	}
+
+	// Copy existing params if available
+	if ra.agent.params != nil {
+		if ra.agent.params.Tools != nil {
+			params.Tools = make([]string, len(ra.agent.params.Tools))
+			copy(params.Tools, ra.agent.params.Tools)
+		}
+
+		if ra.agent.params.Config != nil {
+			params.Config = make(map[string]any)
+			for k, v := range ra.agent.params.Config {
+				params.Config[k] = v
+			}
+		}
+
+		// Copy other non-zero fields
+		if ra.agent.params.MaxTokens > 0 {
+			params.MaxTokens = ra.agent.params.MaxTokens
+		}
+
+		if ra.agent.params.Temperature > 0 {
+			params.Temperature = ra.agent.params.Temperature
+		}
+
+		if ra.agent.params.MaxIterations > 0 {
+			params.MaxIterations = ra.agent.params.MaxIterations
+		}
+
+		params.ParallelTools = ra.agent.params.ParallelTools
+	}
+
+	return params
 }
 
 // Chat starts an interactive chat session with the agent
